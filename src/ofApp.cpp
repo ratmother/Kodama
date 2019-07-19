@@ -2,14 +2,15 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
-    
+    emotion = "none";
     ofBackground(34);
     ofSetFrameRate(60);
     //ofxFifo::make("data/emotion_voice");
     //ofxFifo::make("data/mfcc");
     sampleRate = 44100;
-    bufferSize = 1024;
-    int channels = 1;
+    bufferSize = 512;
+    int channels = 1; //Mono...
+    //int channels = 2; //Stereo...
     
     audioAnalyzer.setup(sampleRate, bufferSize, channels);
     
@@ -60,7 +61,6 @@ void ofApp::update(){
     hpcp = audioAnalyzer.getValues(HPCP, 0, smoothing);
     tristimulus = audioAnalyzer.getValues(TRISTIMULUS, 0, smoothing);
     isOnset = audioAnalyzer.getOnsetValue(0);
-    //emotion = ofxFifo::read_str("data/emotion_voice");
 }
 
 //--------------------------------------------------------------
@@ -296,9 +296,8 @@ void ofApp::draw(){
     ofDrawBitmapString("ofxAudioAnalyzer\n\nALL ALGORITHMS EXAMPLE", 10, 32);
     ofSetColor(ofColor::hotPink);
     ofDrawBitmapString("Keys 1-6: Play audio tracks", 10, 100);
-    
-
-    
+    emotion = ofxFifo::read_str("emotion_voice");
+    ofDrawBitmapStringHighlight("emotion: "+emotion,10,150);
 }
 
 //--------------------------------------------------------------
@@ -313,16 +312,16 @@ void ofApp::keyPressed(int key){
             player.load("flute.wav");
             break;
         case '3':
-            player.load("chord.wav");
+            player.load("laugh_2.wav");
             break;
         case '4':
-            player.load("cadence.wav");
+            player.load("yes_2.wav");
             break;
         case '5':
             player.load("beatTrack.wav");
             break;
         case '6':
-            player.load("noise.wav");
+            player.load("come_on_1.wav");
             break;
             
             
@@ -332,7 +331,7 @@ void ofApp::keyPressed(int key){
     player.play();
     ofxFifo::write_array(mfcc,"data/mfcc"); //File needs read and write permissions by the way.
     std::cout << "Delivered to mfcc pipe: " << ofxFifo::read_str("data/mfcc") << endl;
-    //system("gcc -v; pwd; python LivePredictions.py &");
+    system("gcc -v; pwd; python LivePredictions.py &");
 }
 //--------------------------------------------------------------
 void ofApp::exit(){

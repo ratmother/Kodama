@@ -5,6 +5,7 @@ import fifoutil
 
 '''
 Edited for realtime functionality in Openframeworks by ratmother.
+Uncomment the #print for debugging.
 '''
 
 class livePredictions:
@@ -19,24 +20,23 @@ class livePredictions:
         return self.loaded_model.summary()
 
     def makepredictions(self):
-        while True:
             m = None
             try:
                 m = fifoutil.read_txt("data/mfcc")
             except:
-                print("Failed to read MFCC data!")
-                break #Can change to pass if required and data occasionally gets corrupted.
+                #print("Failed to read MFCC data!")
+                pass #Can change to break if required but data occasionally gets corrupted.
             if m is not None:
-               print("MFCC data has been read.")
-               print("Python reads...", m, " which is a ", type(m))
+               #print("MFCC data has been read.")
+               #print("Python reads...", m, " which is a ", type(m))
                m = np.fromstring(m, dtype=float, sep=',')
-               print("Python converted the input to", type(m))
-               print(m)
+               #print("Python converted the input to", type(m))
+               #print(m)
                x = np.expand_dims(m, axis=2)
                x = np.expand_dims(x, axis=0)
                predictions = self.loaded_model.predict_classes(x)
-               print( "Prediction is", " ", self.convertclasstoemotion(predictions))
                fifoutil.write_txt(self.convertclasstoemotion(predictions).encode(), "data/emotion_voice")
+               print( "Prediction is", " ", self.convertclasstoemotion(predictions))
         
 
     def convertclasstoemotion(self, pred):
