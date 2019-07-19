@@ -1,0 +1,9 @@
+WORK LOG https://github.com/ratmother
+
+June: Learned how to use Linux as it supported more addons I wanted to use and it seemed easier to work with python and tensorflow in it, attempted to debug ofxDarknet and failed (the addon seems to be abandoned by the creators) and decided how to tackle the project. Change from Euius to Kodama (as well as project goals). Failed to debug ofxFacetracker 2, did not feel ofxFacetracker 1 or 2 could actually serve the projects goals well enough so sought other methods, discovered python emotional detection script.
+
+July 5th-18th: Got the python emotion detection script working as well as a Darknet python script working, both are using tensorflow. I've linked the python emotion script to a rudimentary emotion system in openframeworks with ofxFifio. Attempted to debug ofxAudioanalyzer, succeeded after following the errors. Wrote project planner. Found vocal emotional detector which is working with essentia, planning to figure out how to get realtime vocal information to the script with ofxFifo (python script only takes in one .wav file for the demo currently).
+
+July 18th 2019: Sent pull request to ofxAudioAnalzyer at request of creator after discovering a fix for the addon, it was not working on Linux because a functions input did not much the header functions input -- somehow this went by without notice on the working Mac version. Downloaded Bitwig (planning to create genrative music with OSC messages).
+
+July 19th 2019: Got Bitwig up and running on Linux, all the bells and whistles are going fine -- the audio engine crashes often however, I need to fix it before I start working seriously in Bitwig. The python tensorflow voice emotion detector is working and recieving information from ofxAudioanalyzer from openframeworks! I worked literally all day on this and am very pleased everything is working. 
