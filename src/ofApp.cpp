@@ -2,6 +2,7 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+    system("gcc -v; pwd; python emotion_detection.py &");
     emotion = "none";
     ofBackground(34);
     ofSetFrameRate(60);
@@ -331,7 +332,6 @@ void ofApp::keyPressed(int key){
     player.play();
     ofxFifo::write_array(mfcc,"data/mfcc"); //File needs read and write permissions by the way.
     std::cout << "Delivered to mfcc pipe: " << ofxFifo::read_str("data/mfcc") << endl;
-    system("gcc -v; pwd; python LivePredictions.py &");
 }
 //--------------------------------------------------------------
 void ofApp::exit(){
