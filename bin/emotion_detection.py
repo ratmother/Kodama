@@ -1,10 +1,13 @@
 from statistics import mode
-
 import cv2
 from keras.models import load_model
 import numpy as np
 import fifoutil
 import librosa
+from scipy.spatial import distance
+from imutils import face_utils
+import imutils
+import dlib
 from utils.datasets import get_labels
 from utils.inference import detect_faces
 from utils.inference import draw_text
@@ -13,13 +16,21 @@ from utils.inference import apply_offsets
 from utils.inference import load_detection_model
 from utils.preprocessor import preprocess_input
 
+# Modified version of this facial emotion detection script (MIT License) https://github.com/oarriaga/face_classification/blob/master/src/video_emotion_color_demo.py
+# Modifications by ratmother for project Kodama, exchanges information regarding BOTH facial and vocal features with a c++ app using two keras models.
+# MFCCs are sent from ofxAudioanalyzer (C++ Openframeworks app using Essentia) to python, it is then classified with the voice emotion model.
+# Voice emotion model is licensed under CC BY-NA-SC 4.0.
+# The resulting vocal emotion is sent back to C++.
+# The facial emotion detection simply sends whatever emotion it captures to C++. In the future I could have C++ send the facial data to be classified which is probably more efficient.
+# I've placed these two models in the same script for more seamless debugging and simplicity, the plan is to have a seperate script for both gesture and Darknet if I go that route.
+
 # parameters for loading data and images
-detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml'
+detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml' 
 emotion_model_path = '../trained_models/emotion_models/fer2013_mini_XCEPTION.102-0.66.hdf5'
+drowsy_predict = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 emotion_labels = get_labels('fer2013')
 
-# parameters for loading vocal model (added by ratmother)
-
+# parameters for loading VOCAL MODEL
 emotion_vocal_model_path = 'Emotion_Voice_Detection_Model.h5'
 
 # hyper-parameters for bounding boxes shape
@@ -29,23 +40,56 @@ emotion_offsets = (20, 40)
 # loading models
 face_detection = load_detection_model(detection_model_path)
 emotion_classifier = load_model(emotion_model_path, compile=False)
-
-# loading vocal model (added by ratmother)
 voice_classifer = load_model(emotion_vocal_model_path)
-m = None
+detect = dlib.get_frontal_face_detector()
 
-# getting input model shapes for inference
+#  Landmark detection for drowsy detector
+(lStart, lEnd) = face_utils.FACIAL_LANDMARKS_68_IDXS["left_eye"]
+(rStart, rEnd) = face_utils.FACIAL_LANDMARKS_68_IDXS["right_eye"]
+def eye_aspect_ratio(eye):
+	A = distance.euclidean(eye[1], eye[5])
+	B = distance.euclidean(eye[2], eye[4])
+	C = distance.euclidean(eye[0], eye[3])
+	ear = (A + B) / (2.0 * C)
+	return ear
+
+# Setting up  general parameters
 emotion_target_size = emotion_classifier.input_shape[1:3]
+m = None
+thresh = 0.25
+frame_check = 20
+flag = 0
 
 # starting lists for calculating modes
 emotion_window = []
-
-# starting video streaming
 cv2.namedWindow('window_frame')
 video_capture = cv2.VideoCapture(0)
+
+#Main loop for all three detection algorithms
 while True:
+    #DROWSY DETECTION LOOP
+    ret, frame=video_capture.read()
+    frame = imutils.resize(frame, width=450)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    subjects = detect(gray, 0)
+    for subject in subjects:
+    	shape = drowsy_predict(gray, subject)
+    	shape = face_utils.shape_to_np(shape)#converting to NumPy Array
+    	leftEye = shape[lStart:lEnd]
+    	rightEye = shape[rStart:rEnd]
+    	leftEAR = eye_aspect_ratio(leftEye)
+    	rightEAR = eye_aspect_ratio(rightEye)
+    	ear = (leftEAR + rightEAR) / 2.0
+    	leftEyeHull = cv2.convexHull(leftEye)
+    	rightEyeHull = cv2.convexHull(rightEye)
+    	cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
+    	cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
+    	if ear < thresh:
+    		flag += 1
+        else:
+            flag = 0;
+    #VOCAL EMOTION DETECTION LOOP
     emotion = "none"
-    # detecting emotion in vocals (added by ratmother)
     try:
         m = fifoutil.read_txt("data/mfcc")
     except:
@@ -73,14 +117,12 @@ while True:
             emotion = "surprised"
         elif pred == None:
             emotion = "none"
-        print(pred)
-        fifoutil.write_txt(emotion.encode(), "data/emotion_voice")
-        print( "Prediction is", " ", emotion)
+        fifoutil.write_txt(emotion.encode(), "data/emotion_voice") #Sends voice emotion to the pipe.
+    #FACE EMOTION DETECTION LOOP
     bgr_image = video_capture.read()[1]
     gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
     rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
     faces = detect_faces(face_detection, gray_image)
-    
     for face_coordinates in faces:
 
         x1, x2, y1, y2 = apply_offsets(face_coordinates, emotion_offsets)
@@ -98,7 +140,7 @@ while True:
         emotion_label_arg = np.argmax(emotion_prediction)
         emotion_text = emotion_labels[emotion_label_arg]
         emotion_window.append(emotion_text)
-        fifoutil.write_txt(emotion_text.encode(), "emotion")
+        fifoutil.write_txt(emotion_text.encode(), "emotion") #Sends face emotion to the pipe.
 
         if len(emotion_window) > frame_window:
             emotion_window.pop(0)
@@ -120,15 +162,21 @@ while True:
 
         color = color.astype(int)
         color = color.tolist()
-
+        emotion_face = "Face:" + emotion_mode
+        emotion_voice = "Voice:" + emotion
+        emotion_drowsiness = "Sleepiness:" + str(flag)
         draw_bounding_box(face_coordinates, rgb_image, color)
-        draw_text(face_coordinates, rgb_image, emotion_mode,
+        draw_text(face_coordinates, rgb_image, emotion_face,
                   color, 0, -45, 1, 1)
+        draw_text(face_coordinates, rgb_image, emotion_voice,
+                  color, 0, -75, 1, 1) 
 
+        draw_text(face_coordinates, rgb_image, emotion_drowsiness, color, 0, -100, 1, 1) 
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 video_capture.release()
 cv2.destroyAllWindows()
+
 
