@@ -53,12 +53,16 @@ def eye_aspect_ratio(eye):
 	ear = (A + B) / (2.0 * C)
 	return ear
 
-# Setting up  general parameters
+# Setting up parameters
 emotion_target_size = emotion_classifier.input_shape[1:3]
-m = None
-thresh = 0.25
+m = None #MFCC, if found, it is placed into this variable.
+thresh = 0.25 #Thresold used for drowsy detection.
 frame_check = 20
-flag = 0
+drowsiness = 0
+vocalEmotion = "None" #The output string of the vocal emotion detector.
+faceEmotion = "None"
+drowsyEmotion = "None"
+emotionOut = "None"
 
 # starting lists for calculating modes
 emotion_window = []
@@ -67,6 +71,7 @@ video_capture = cv2.VideoCapture(0)
 
 #Main loop for all three detection algorithms
 while True:
+
     #DROWSY DETECTION LOOP
     ret, frame=video_capture.read()
     frame = imutils.resize(frame, width=450)
@@ -85,13 +90,15 @@ while True:
     	cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
     	cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
     	if ear < thresh:
-    		flag += 1
+    		drowsiness += 1
         else:
-            flag = 0;
+            drowsiness = 0
+        drowsyEmotion = str(drowsiness)
+
     #VOCAL EMOTION DETECTION LOOP
     emotion = "none"
     try:
-        m = fifoutil.read_txt("data/mfcc")
+        m = fifoutil.read_txt("data/mfcc") #Read data from ofxAudioanalyzer 
     except:
         pass 
     if m is not None:
@@ -117,7 +124,8 @@ while True:
             emotion = "surprised"
         elif pred == None:
             emotion = "none"
-        fifoutil.write_txt(emotion.encode(), "data/emotion_voice") #Sends voice emotion to the pipe.
+        vocalEmotion = emotion
+
     #FACE EMOTION DETECTION LOOP
     bgr_image = video_capture.read()[1]
     gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
@@ -140,7 +148,7 @@ while True:
         emotion_label_arg = np.argmax(emotion_prediction)
         emotion_text = emotion_labels[emotion_label_arg]
         emotion_window.append(emotion_text)
-        fifoutil.write_txt(emotion_text.encode(), "emotion") #Sends face emotion to the pipe.
+        faceEmotion = emotion_text
 
         if len(emotion_window) > frame_window:
             emotion_window.pop(0)
@@ -164,7 +172,7 @@ while True:
         color = color.tolist()
         emotion_face = "Face:" + emotion_mode
         emotion_voice = "Voice:" + emotion
-        emotion_drowsiness = "Sleepiness:" + str(flag)
+        emotion_drowsiness = "Sleepiness:" + str(drowsiness)
         draw_bounding_box(face_coordinates, rgb_image, color)
         draw_text(face_coordinates, rgb_image, emotion_face,
                   color, 0, -45, 1, 1)
@@ -172,6 +180,10 @@ while True:
                   color, 0, -75, 1, 1) 
 
         draw_text(face_coordinates, rgb_image, emotion_drowsiness, color, 0, -100, 1, 1) 
+
+    emotionOut = vocalEmotion + "," + faceEmotion + "," + drowsyEmotion
+    fifoutil.write_txt(emotionOut.encode(), "data/emotion_voice") #Sends emotions to the pipe to be picked up by openframeworks.
+    print(emotionOut)
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
     if cv2.waitKey(1) & 0xFF == ord('q'):
