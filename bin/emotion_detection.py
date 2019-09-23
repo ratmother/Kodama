@@ -53,11 +53,10 @@ def eye_aspect_ratio(eye):
 	ear = (A + B) / (2.0 * C)
 	return ear
 
-# Setting up parameters
+# Initalize parameters
 emotion_target_size = emotion_classifier.input_shape[1:3]
-m = None #MFCC, if found, it is placed into this variable.
+mfcc_in = None #MFCC from C++ fifo pipe, if found, it is placed into this variable.
 thresh = 0.25 #Thresold used for drowsy detection.
-frame_check = 20
 drowsiness = 0
 vocalEmotion = "None" #The output string of the vocal emotion detector.
 faceEmotion = "None"
@@ -97,13 +96,13 @@ while True:
 
     #VOCAL EMOTION DETECTION LOOP
     emotion = "none"
-    try:
-        m = fifoutil.read_txt("data/mfcc") #Read data from ofxAudioanalyzer 
+    try:    
+        mfcc_in = fifoutil.read_txt("data/mfcc") #Read data from ofxAudioanalyzer 
     except:
         pass 
-    if m is not None:
-        m = np.fromstring(m, dtype=float, sep=',')
-        x = np.expand_dims(m, axis=2)
+    if mfcc_in is not None:
+        mfcc_in = np.fromstring(mfcc_in, dtype=float, sep=',')
+        x = np.expand_dims(mfcc_in, axis=2)
         x = np.expand_dims(x, axis=0)
         pred = voice_classifer.predict_classes(x)
         if pred == 0:
@@ -182,8 +181,7 @@ while True:
         draw_text(face_coordinates, rgb_image, emotion_drowsiness, color, 0, -100, 1, 1) 
 
     emotionOut = vocalEmotion + "," + faceEmotion + "," + drowsyEmotion
-    fifoutil.write_txt(emotionOut.encode(), "data/emotion_voice") #Sends emotions to the pipe to be picked up by openframeworks.
-    print(emotionOut)
+    fifoutil.write_txt(emotionOut.encode(), "data/emotion_out") #Sends emotions to the pipe to be picked up by openframeworks.
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
     if cv2.waitKey(1) & 0xFF == ord('q'):

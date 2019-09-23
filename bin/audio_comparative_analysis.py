@@ -2,6 +2,7 @@ import os
 import csv
 import librosa
 import pickle
+import fifoutil
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
@@ -23,7 +24,7 @@ def get_pca(features):
     return scaler.transform(transformed)
 
 
-directory = './Drums/'
+directory = './data/learning_sounds'
 dataset = []
 sample_rate = 44100
 mfcc_size = 13
@@ -68,7 +69,10 @@ else:
     pickle.dump(pca_data, file_out)
     file_out.close()
 
+pca_mfcc_string = str(pca_mfcc)
+file_paths_string = str(all_file_paths)
+fifoutil.write_txt(pca_mfcc_string.encode(), "data/pca_out") 
+fifoutil.write_txt(file_paths_string.encode(), "data/sound_names_out") 
 
-for a, b in pca_data:
-    print a, b
+    
 

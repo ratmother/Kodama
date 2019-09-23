@@ -1,9 +1,28 @@
 #include "ofApp.h"
 
+soundSynapse ofApp::createSoundSynapse(float x, float y, string fileName) {; 
+    soundSynapse synapse = {{},x, y};
+    synapse.fileName = fileName;
+	return synapse;
+}
+
+videoSynapse ofApp::createVideoSynapse(string fileName) {
+    videoSynapse synapse = {{}};
+    synapse.fileName = fileName;
+	return synapse;
+}
+
 //--------------------------------------------------------------
 void ofApp::setup(){
-    system("gcc -v; pwd; python emotion_detection.py &");
-    emotion = "none";
+    timer = 0;
+    mag_timer = 0;
+    state = 0;
+    stable = 0;
+    learn_neg = 1;
+    learn_pos = 1;
+    current_reaction = 0;
+    system("killall python"); 
+    system("gcc -v; pwd; audio_comparative_analysis.py; python emotion_detection.py &");
     ofBackground(34);
     ofSetFrameRate(60);
     //ofxFifo::make("data/emotion_voice");
@@ -15,11 +34,12 @@ void ofApp::setup(){
     
     audioAnalyzer.setup(sampleRate, bufferSize, channels);
     
-    player.load("beatTrack.wav");
+    player.load("learning_sounds/beatTrack.wav");
     
     gui.setup();
     gui.setPosition(20, 150);
     gui.add(smoothing.setup  ("Smoothing", 0.0, 0.0, 1.0));
+    soundSynapse test = createSoundSynapse(0,0, "learning_sounds/test440mono.wav");
    
 }
 
@@ -46,283 +66,94 @@ void ofApp::update(){
     oddToEven = audioAnalyzer.getValue(ODD_TO_EVEN, 0, smoothing);
     strongPeak = audioAnalyzer.getValue(STRONG_PEAK, 0, smoothing);
     strongDecay = audioAnalyzer.getValue(STRONG_DECAY, 0, smoothing);
-    //Normalized values for graphic meters:
-    pitchFreqNorm   = audioAnalyzer.getValue(PITCH_FREQ, 0, smoothing, TRUE);
-    hfcNorm     = audioAnalyzer.getValue(HFC, 0, smoothing, TRUE);
-    specCompNorm = audioAnalyzer.getValue(SPECTRAL_COMPLEXITY, 0, smoothing, TRUE);
-    centroidNorm = audioAnalyzer.getValue(CENTROID, 0, smoothing, TRUE);
-    rollOffNorm  = audioAnalyzer.getValue(ROLL_OFF, 0, smoothing, TRUE);
-    oddToEvenNorm   = audioAnalyzer.getValue(ODD_TO_EVEN, 0, smoothing, TRUE);
-    strongPeakNorm  = audioAnalyzer.getValue(STRONG_PEAK, 0, smoothing, TRUE);
-    strongDecayNorm = audioAnalyzer.getValue(STRONG_DECAY, 0, smoothing, TRUE);
-    dissonance = audioAnalyzer.getValue(DISSONANCE, 0, smoothing);
-    spectrum = audioAnalyzer.getValues(SPECTRUM, 0, smoothing);
-    melBands = audioAnalyzer.getValues(MEL_BANDS, 0, smoothing);
-    mfcc = audioAnalyzer.getValues(MFCC, 0, smoothing);
-    hpcp = audioAnalyzer.getValues(HPCP, 0, smoothing);
-    tristimulus = audioAnalyzer.getValues(TRISTIMULUS, 0, smoothing);
-    isOnset = audioAnalyzer.getOnsetValue(0);
+
+     mfcc = audioAnalyzer.getValues(MFCC, 0, smoothing);
+     datSnap();
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    
-    //-Single value Algorithms:
-    
-    ofPushMatrix();
-    ofTranslate(350, 0);
-    int mw = 250;
-    int xpos = 0;
-    int ypos = 30;
-    
-    float value, valueNorm;
-    
-    ofSetColor(255);
-    value = rms;
-    string strValue = "RMS: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = power;
-    strValue = "Power: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = pitchFreq;
-    valueNorm = pitchFreqNorm;
-    strValue = "Pitch Frequency: " + ofToString(value, 2) + " hz.";
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = pitchConf;
-    strValue = "Pitch Confidence: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = pitchSalience;
-    strValue = "Pitch Salience: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = inharmonicity;
-    strValue = "Inharmonicity: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = hfc;
-    valueNorm = hfcNorm;
-    strValue = "HFC: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = specComp;
-    valueNorm = specCompNorm;
-    strValue = "Spectral Complexity: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = centroid;
-    valueNorm = centroidNorm;
-    strValue = "Centroid: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = dissonance;
-    strValue = "Dissonance: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = rollOff;
-    valueNorm = rollOffNorm;
-    strValue = "Roll Off: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw , 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = oddToEven;
-    valueNorm = oddToEvenNorm;
-    strValue = "Odd To Even Harmonic Energy Ratio: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = strongPeak;
-    valueNorm = strongPeakNorm;
-    strValue = "Strong Peak: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = strongDecay;
-    valueNorm = strongDecayNorm;
-    strValue = "Strong Decay: " + ofToString(value, 2);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, valueNorm * mw, 10);
-    
-    ypos += 50;
-    ofSetColor(255);
-    value = isOnset;
-    strValue = "Onsets: " + ofToString(value);
-    ofDrawBitmapString(strValue, xpos, ypos);
-    ofSetColor(ofColor::cyan);
-    ofDrawRectangle(xpos, ypos+5, value * mw, 10);
-    
-    ofPopMatrix();
-    
-    //-Vector Values Algorithms:
-    
-    ofPushMatrix();
-    
-    ofTranslate(700, 0);
-    
-    int graphH = 75;
-    int yoffset = graphH + 50;
-    ypos = 30;
-    
-    ofSetColor(255);
-    ofDrawBitmapString("Spectrum: ", 0, ypos);
-    ofPushMatrix();
-    ofTranslate(0, ypos);
-    ofSetColor(ofColor::cyan);
-    float bin_w = (float) mw / spectrum.size();
-    for (int i = 0; i < spectrum.size(); i++){
-        float scaledValue = ofMap(spectrum[i], DB_MIN, DB_MAX, 0.0, 1.0, true);//clamped value
-        float bin_h = -1 * (scaledValue * graphH);
-        ofDrawRectangle(i*bin_w, graphH, bin_w, bin_h);
+    if(timer >= 60){
+        timer = 0;
+        getEmotionData("data/emotion_out");
     }
-    ofPopMatrix();
-    
-    ypos += yoffset;
-    ofSetColor(255);
-    ofDrawBitmapString("Mel Bands: ", 0, ypos);
-    ofPushMatrix();
-    ofTranslate(0, ypos);
-    ofSetColor(ofColor::cyan);
-    bin_w = (float) mw / melBands.size();
-    for (int i = 0; i < melBands.size(); i++){
-        float scaledValue = ofMap(melBands[i], DB_MIN, DB_MAX, 0.0, 1.0, true);//clamped value
-        float bin_h = -1 * (scaledValue * graphH);
-        ofDrawRectangle(i*bin_w, graphH, bin_w, bin_h);
-    }
-    ofPopMatrix();
-    
-    ypos += yoffset;
-    ofSetColor(255);
-    ofDrawBitmapString("MFCC: ", 0, ypos);
-    ofPushMatrix();
-    ofTranslate(0, ypos);
-    ofSetColor(ofColor::cyan);
-    bin_w = (float) mw / mfcc.size();
-    for (int i = 0; i < mfcc.size(); i++){
-        float scaledValue = ofMap(mfcc[i], 0, MFCC_MAX_ESTIMATED_VALUE, 0.0, 1.0, true);//clamped value
-        float bin_h = -1 * (scaledValue * graphH);
-        ofDrawRectangle(i*bin_w, graphH, bin_w, bin_h);
-    }
-    ofPopMatrix();
-    
-    ypos += yoffset;
-    ofSetColor(255);
-    ofDrawBitmapString("HPCP: ", 0, ypos);
-    ofPushMatrix();
-    ofTranslate(0, ypos);
-    ofSetColor(ofColor::cyan);
-    bin_w = (float) mw / hpcp.size();
-    for (int i = 0; i < hpcp.size(); i++){
-        //float scaledValue = ofMap(hpcp[i], DB_MIN, DB_MAX, 0.0, 1.0, true);//clamped value
-        float scaledValue = hpcp[i];
-        float bin_h = -1 * (scaledValue * graphH);
-        ofDrawRectangle(i*bin_w, graphH, bin_w, bin_h);
-    }
-    ofPopMatrix();
-    
-    ypos += yoffset;
-    ofSetColor(255);
-    ofDrawBitmapString("Tristimulus: ", 0, ypos);
-    ofPushMatrix();
-    ofTranslate(0, ypos);
-    ofSetColor(ofColor::cyan);
-    bin_w = (float) mw / tristimulus.size();
-    for (int i = 0; i < tristimulus.size(); i++){
-        //float scaledValue = ofMap(hpcp[i], DB_MIN, DB_MAX, 0.0, 1.0, true);//clamped value
-        float scaledValue = tristimulus[i];
-        float bin_h = -1 * (scaledValue * graphH);
-        ofDrawRectangle(i*bin_w, graphH, bin_w, bin_h);
-    }
-    ofPopMatrix();
-    
-
-    ofPopMatrix();
-    
-    //-Gui & info:
-    
+    timer ++;
+    //-Gui & info:  
     gui.draw();
     ofSetColor(255);
-    ofDrawBitmapString("ofxAudioAnalyzer\n\nALL ALGORITHMS EXAMPLE", 10, 32);
     ofSetColor(ofColor::hotPink);
-    ofDrawBitmapString("Keys 1-6: Play audio tracks", 10, 100);
-    emotion = ofxFifo::read_str("emotion_voice");
-    ofDrawBitmapStringHighlight("emotion: "+emotion,10,150);
+   // ofDrawBitmapStringHighlight("input emotion state state: "+ofToString(state),0,50);
+    if(learn_neg > 2){
+        ofDrawBitmapStringHighlight("I am  a little moody today",0,200);
+    }
+     if(learn_pos > 2){
+        ofDrawBitmapStringHighlight("I am feeling pretty good",0,200);
+    }
+       if(learn_neg > 3){
+        ofDrawBitmapStringHighlight("I am unhappy",0,200);
+    }
+     if(learn_pos > 3){
+        ofDrawBitmapStringHighlight("I am happy",0,200);
+    }
+    if(learn_neg > 4){
+        ofDrawBitmapStringHighlight("I am gonna cry soon",0,200);
+    }
+     if(learn_pos > 4){
+        ofDrawBitmapStringHighlight("I am just having the time of my life",0,200);
+    }
 }
 
 //--------------------------------------------------------------
+void ofApp::getEmotionData(std::string pipe){
+    //Read the pipe which contains emotion-detection data (from the python script).
+    //Split the string by comma and place them into a vector, emotion_split.
+    //Note: emotion_'attribute' names refer to emotion detection (trings describing current emotion states) data only.
+    //Happiness is what we're after and it is scored highly, sadness and neurtrality usually equate to disinterest.
+    emotion_pipe = ofxFifo::read_str(pipe);
+    boost::split(emotion_split, emotion_pipe, [](char c){return c == ',';}); 
+    emotion_voice = emotion_split[0];
+    emotion_face = emotion_split[1];
+    emotion_wakeful = emotion_split[2];
+    //Current numbers are yet to be tested with users.
+    if(emotion_face == "neutral"){
+        current_reaction = 0;
+    }
+    if(emotion_face == "happy"){
+        current_reaction = 1000;
+    }
+    if(emotion_face == "sad"){
+        current_reaction = -250;
+    }
+    if(emotion_face == "angry"){
+        current_reaction = -300;
+    }
+    current_wakefulness = std::stoi(emotion_wakeful);
+    //std::cout << current_reaction << endl;
+    //std::cout << current_wakefulness << endl;
+}
+
 void ofApp::keyPressed(int key){
+    getEmotionData("data/emotion_out");
     player.stop();
     switch (key) {
        
         case '1':
-            player.load("test440mono.wav");
+            player.load("learning_sounds/test440mono.wav");
             break;
         case '2':
-            player.load("flute.wav");
+            player.load("learning_sounds/flute.wav");
             break;
         case '3':
-            player.load("laugh_2.wav");
+            player.load("learning_sounds/laugh_2.wav");
             break;
         case '4':
-            player.load("yes_2.wav");
+            player.load("learning_sounds/yes_2.wav");
             break;
         case '5':
-            player.load("beatTrack.wav");
+            player.load("learning_sounds/beatTrack.wav");
             break;
         case '6':
-            player.load("come_on_1.wav");
+            player.load("learning_sounds/come_on_1.wav");
             break;
             
             
@@ -331,59 +162,60 @@ void ofApp::keyPressed(int key){
     }
     player.play();
     ofxFifo::write_array(mfcc,"data/mfcc"); //File needs read and write permissions by the way.
-    std::cout << "Delivered to mfcc pipe: " << ofxFifo::read_str("data/mfcc") << endl;
+    //std::cout << "Delivered to mfcc pipe: " << ofxFifo::read_str("data/mfcc") << endl;
+    //std::cout << "PCA coordinates: " << ofxFifo::read_str("data/pca_out") << endl;
 }
 //--------------------------------------------------------------
 void ofApp::exit(){
     audioAnalyzer.exit();
     player.stop();
-}
-//--------------------------------------------------------------
-void ofApp::keyReleased(int key){
-
+    system("killall python"); 
 }
 
-//--------------------------------------------------------------
-void ofApp::mouseMoved(int x, int y ){
-
+void ofApp::emotamine(soundSynapse synapse){ //this needs to be pass by reference not copy
+   // if(finished){
+      //synapse.wakefulness =  accumWakeful;
+     // synapse.reaction = avgReact;
+    //}
 }
+//I'm going to remove the video aspect I think, as the X and Y positions from the comparative analysis, and it focuses the project. 
+//Perhaps it should be animations, and/or the video aspect will just be simpler..s
 
-//--------------------------------------------------------------
-void ofApp::mouseDragged(int x, int y, int button){
+void ofApp::datSnap(){ //datSnap(vector snapshots, int wakefulness)?
+    snap_timer += 1;
+    if (snap_timer >= 60){
+        accumWakeful += current_wakefulness;
+        if(reaction_snapshots.size() == 0){
+          reaction_snapshots.push_back(current_reaction);
+          avgReact = std::accumulate( reaction_snapshots.begin(), reaction_snapshots.end(), 0.0)/reaction_snapshots.size(); 
+        }
+        else {
+            reaction_snapshots.push_back(current_reaction * mag_snapshots.size());
+            avgReact = std::accumulate( reaction_snapshots.begin(), reaction_snapshots.end(), 0.0)/reaction_snapshots.size(); 
+            std::cout << current_reaction * reaction_snapshots.size() << " " << avgReact << endl;
+        }
+        snap_timer = 0;
+    }
 
+   /* check if something that is being learnt about is running, audio video animation etc, if it isnt, reset the snapshot container every 100 seconds
+   //its possible in the final version that there is no down time for learning, so we will need to cut the vector to be smaller
+   //or each content type gets its own reaction snap shots and accumulator, 100 seconds is the effective spillover rate
+   //a better change is to slowly chop  away the front of the vector while there is no content playing
+   //OR make it so every 100 snaps, the system adds a data point for the running synapse. 
+   if(reaction_snapshots.size() >= 60){
+       //add info to snap function (which is also called at the end of a clip --- if its not long enough, dont add data point)
+       //actually, add a cooldown period after this so that the end snapshot isnt saved as a data point if there was a recent capture
+       capture(reaction_snapshots, acummwakeful, cooldown 600)
+        cooldown = 600;
+        accumWakeful = 0;
+       reaction_snapshots.clear();
+    }
+    */
+    //Save mag as data point in the synapse. Probably the output data point for each synapse.
+    //Actually, each synapse should be submitted as a data point, inclding emoMag as its output, but each synapse will only have one emoMag at a time.
+    //At the end of the playback, submit the synapse for data entry with the emoMag. 
+    //Take average of a collection of snapshots of mag
 }
-
-//--------------------------------------------------------------
-void ofApp::mousePressed(int x, int y, int button){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseReleased(int x, int y, int button){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseEntered(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::mouseExited(int x, int y){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::windowResized(int w, int h){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::gotMessage(ofMessage msg){
-
-}
-
-//--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
-}
+//make consistentcy multiplier!
+//Next make a function which calculates boredum. longer in the negative --> slower back up drift, quicker from happiness. 
+//When happy start recording and place in happy class and vice versa. Voice/sounds associated with happy triggers happy-associated music. 

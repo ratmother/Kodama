@@ -6,7 +6,18 @@
 #include "ofxGui.h"
 #include "ofxFifo.h"
 #include "ofxFifoThread.h"
+#include <boost/algorithm/string.hpp>
 
+struct soundSynapse {
+
+	string fileName;
+    float x; //X and Y are taken from the audio_comparative_analysis.py script.
+    float y;
+    float volatility; //Intensity of the users reaction.
+    float reaction; //Direction of the emotional quality, e.g sad or happy.
+    float wakefulness; //Drowsiness or excitement.
+
+};
 
 class ofApp : public ofBaseApp{
 
@@ -16,16 +27,6 @@ class ofApp : public ofBaseApp{
 		void draw();
         void exit();
 		void keyPressed(int key);
-		void keyReleased(int key);
-		void mouseMoved(int x, int y );
-		void mouseDragged(int x, int y, int button);
-		void mousePressed(int x, int y, int button);
-		void mouseReleased(int x, int y, int button);
-		void mouseEntered(int x, int y);
-		void mouseExited(int x, int y);
-		void windowResized(int w, int h);
-		void dragEvent(ofDragInfo dragInfo);
-		void gotMessage(ofMessage msg);
         //OFXAUDIOANALYZER
         ofxAudioAnalyzer audioAnalyzer;
         ofSoundPlayerExtended player;
@@ -63,6 +64,25 @@ class ofApp : public ofBaseApp{
         ofxPanel gui;
         ofxFloatSlider smoothing;
         //OFXFIFO
-        std::string emotion;
+        std::string emotion_face;
+        std::string emotion_voice;
+        std::string emotion_wakeful;
         ofxFifo::vidWriteThread vwt;
+        //KODAMA
+        soundSynapse createSoundSynapse(float x, float y, string fileName);
+        void datSnap();
+        void emotamine(soundSynapse synapse);
+        void getEmotionData(std::string pipe);
+        vector<soundSynapse> soundSynapses;
+        vector<float> reaction_snapshots;
+        //Emotion system experimental
+        int timer;
+        int snap_timer;
+        std::vector<std::string> emotion_split;
+        std::string emotion_pipe;
+        float current_reaction;
+        int current_wakefulness;
+        float avgReact;
+        float accumWakeful;
+        bool synapseIsRunning;
 };
