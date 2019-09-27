@@ -2,22 +2,12 @@
 
 #include "ofMain.h"
 #include "ofxAudioAnalyzer.h"
-#include "ofSoundPlayerExtended.h"
 #include "ofxGui.h"
+#include "synapse.h"
 #include "ofxFifo.h"
 #include "ofxFifoThread.h"
+#include "ofSoundPlayerExtended.h"
 #include <boost/algorithm/string.hpp>
-
-struct soundSynapse {
-
-	string fileName;
-    float x; //X and Y are taken from the audio_comparative_analysis.py script.
-    float y;
-    float volatility; //Intensity of the users reaction.
-    float reaction; //Direction of the emotional quality, e.g sad or happy.
-    float wakefulness; //Drowsiness or excitement.
-
-};
 
 class ofApp : public ofBaseApp{
 
@@ -27,12 +17,13 @@ class ofApp : public ofBaseApp{
 		void draw();
         void exit();
 		void keyPressed(int key);
+        void startSynapse(synapse &input, ofSoundPlayerExtended &splayer, std::string face, std::string voice, std::string drowsy);
         //OFXAUDIOANALYZER
         ofxAudioAnalyzer audioAnalyzer;
+        ofSoundBuffer soundBuffer;
         ofSoundPlayerExtended player;
         int sampleRate;
         int bufferSize;
-        ofSoundBuffer soundBuffer;
         float rms;
         float power;
         float pitchFreq;
@@ -68,21 +59,8 @@ class ofApp : public ofBaseApp{
         std::string emotion_voice;
         std::string emotion_wakeful;
         ofxFifo::vidWriteThread vwt;
-        //KODAMA
-        soundSynapse createSoundSynapse(float x, float y, string fileName);
-        void datSnap();
-        void emotamine(soundSynapse synapse);
-        void getEmotionData(std::string pipe);
-        vector<soundSynapse> soundSynapses;
-        vector<float> reaction_snapshots;
-        //Emotion system experimental
-        int timer;
-        int snap_timer;
         std::vector<std::string> emotion_split;
         std::string emotion_pipe;
-        float current_reaction;
-        int current_wakefulness;
-        float avgReact;
-        float accumWakeful;
-        bool synapseIsRunning;
+        int timer;
+        synapse test1;
 };
