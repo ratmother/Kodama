@@ -1,12 +1,11 @@
 #include "synapse.h"
 
+//TO DO: Attention and movement detection, test vocal detection, implement PCA into synapse.
+//Once thats done we need to start testing. Everything works? Try implementing the video aspect of it.
 
 void synapse::setup(std::string file){
     fileName = file;    
-    current_reaction = 0;
-    bufferSize = 512;
     isEnded = true;
-    lastEMA = 0;
     std::cout <<  "synapse set up ... " << file << endl;
 }
 
@@ -16,119 +15,76 @@ void synapse::setCoord(float xin, float yin){
     y = yin;
 }
 
+void synapse::update(float input_face, float voice, float input_drowsy, float position){ //float movement, float attention...
+    if(position < 0.95){
+        isEnded = false;
+        cooldown -= 40; 
+        snap_timer += 1;
+        if (snap_timer >= 3){
+            avg_face = getAverage(face_snapshots, input_face);
+            std::cout << avg_face << "... is the MA for face. .." << endl;
+            avg_drowsy = getAverage(drowsy_snapshots, input_drowsy);
+            snap_timer = 0;
+        }
+        if(cooldown < 10){
+            face_result = getWeightedAverage(face_data, face_snapshots, 3, avg_face);
+            std::cout << face_result << " this is the result ... " << endl;
+            drowsy_result = getWeightedAverage(drowsy_data,drowsy_snapshots, 3, avg_drowsy);
+            cooldown = 600;
+        }
+    } else {
+        isEnded = true;
+    }
+}
+
+float synapse::getAverage(std::vector<float> &v, float input){
+    v.push_back(input); 
+    return std::accumulate(v.begin(), v.end(), 0.0)/v.size();
+}
+
+//This function was inspired by attempting to get an EMA (exponential moving average) to work, is in't an EMA though.
+//It simply takes the most recent entries (span), averages them, and adds half of the difference (to the overall entries) to the average of all the entries.
+//After the size of the input vector reaches span, the fv (front vector of size span) will start to diverge from the input vector more and more as entries are added.
+float synapse::getWeightedAverage(std::vector<float> &v, std::vector<float> &snapshots, int span, float average){
+    snapshots.clear();
+    v.push_back(average);
+    std::cout << average << " this is the average inputed " << endl;
+    if(v.size() > span){
+        std::vector<float> fv = v;
+        fv.erase(fv.begin(),fv.end()-span);
+        for(int i = 0; i < fv.size(); i++){
+            std::cout << "fv " << fv[i] << endl;
+        }
+        for(int i = 0; i < v.size(); i++){
+            std::cout << "v " << v[i] << endl;
+        }
+        float maj = std::accumulate(v.begin(), v.end(), 0.0)/v.size();
+        float min = std::accumulate(fv.begin(), fv.end(), 0.0)/fv.size();
+        std::cout << min << " the fv averaged and " << maj << " the overall average, results in " << (((min - maj)/2) + maj) << endl;
+        return (((min - maj)/2) + maj);
+    } else {
+       return std::accumulate(v.begin(), v.end(), 0.0)/v.size(); 
+    }
+}
+
+/*       if(face == "neutral"){
+            input_face = 0;
+        }
+        if(face == "happy"){
+            input_face =  1000;
+        }
+        if(face == "sad"){
+            input_face = -250;
+        }
+        if(face == "angry"){
+            input_face = -300;
+        } */
+
+
 //Synapses for video could include whats in the video, e.g 'dog', 'human'. 
-//Synapses for behaviours (UI behaviours) could include colours, speed, strength.
+//Synapses for behaviours (UI behaviours) cfould include colours, speed, strength.
 //Proactive and reactive states of behaviours (set by user), e.g, depressive states avoided (proactive) or complimented by known-depressive content (reactive)
 
 //Idea, two settings: simple (party mode, baby mode and proactive or reactive) or advanced mode (allowing user to set how much sad or happy is awarded)
 //Ergo, a user could set up Kodama to be scary if they wanted to use it for halloween(desiring fear), or relaxed (desiring minmial movement) if they want to relax.
 //The CIA could use it to find what spooks someone the most! Spooky!
-void synapse::update(std::string face, std::string voice, std::string drowsy, float position){
-    if(position < 0.9){
-        isEnded = false;
-        cooldown -= 50;
-        snap_timer += 1;
-        if(face == "neutral"){
-            current_reaction = 0;
-        }
-        if(face == "happy"){
-            current_reaction =  ofRandom(1000);
-        }
-        if(face == "sad"){
-            current_reaction = -250;
-        }
-        if(face == "angry"){
-            current_reaction = -300;
-        }
-        current_wakefulness = std::stoi(drowsy);
-        if (snap_timer >= 3){
-            accumWakeful += current_wakefulness;
-            if(reaction_snapshots.size() == 0){
-                reaction_snapshots.push_back(current_reaction);
-                avgReact = std::accumulate( reaction_snapshots.begin(), reaction_snapshots.end(), 0.0)/reaction_snapshots.size(); 
-            }else{
-                reaction_snapshots.push_back(current_reaction * reaction_snapshots.size());
-                avgReact = std::accumulate( reaction_snapshots.begin(), reaction_snapshots.end(), 0.0)/reaction_snapshots.size(); 
-            }
-            snap_timer = 0;
-        }
-        //Capture averaged reaction as a permanant data point in this synapse at regular intervals.
-        if(reaction_snapshots.size() >= 5 && cooldown < 10){
-            snapped_reaction.push_back(avgReact);
-            sar = getEMA(snapped_reaction);
-            snapped_drowsy.push_back(accumWakeful);
-            accumWakeful = 0;
-            reaction_snapshots.clear();
-            cooldown = 600;
-        }
-    } else if(position >= 0.91){
-        end();
-    }
-}
-
-
-void synapse::draw(){
-    ofSetColor(255);
-    ofSetColor(ofColor::hotPink);
-    ofDrawBitmapStringHighlight("This content is running: "+fileName,0,50);
-}
-
-void synapse::end(){
-    isEnded = true;
-    std::cout << "ended" << endl; 
-    //At the end of the content, add the averaged reaction as a permanant data point in this synapse.
-    if(reaction_snapshots.size() >= 5 && cooldown < 10){
-        std::cout << "ended and snapped" << endl; 
-        std::cout << reaction_snapshots.size() << endl; 
-        snapped_reaction.push_back(avgReact);
-        sar = weightedAverage(snapped_reaction);
-        std::cout << "weighted average is  " << sar << endl; 
-        snapped_drowsy.push_back(accumWakeful);
-        //snapped_movement, snapped_attention, snapped_popularity... etc.
-        cooldown = 600;
-        accumWakeful = 0;
-        reaction_snapshots.clear();
-    }
-}
-
-void synapse::start(){
-    isEnded = false;
-    cooldown = 0;
-    accumWakeful = 0;
-    reaction_snapshots.clear();
-}
-
-//After playing around with moving averages and EMAs I decided to make a simple weighted average to fit the intended goal.
-//This function causes the latest additions to the vector to be weighted higher than older additions, its biased towards newer data.
-//I'm not sure if this is a 'real' or standard algorithm to use, I've never seen it before, its very simple. 
-float synapse::weightedAverage(std::vector<float> v){
-    std::vector<float> wa;
-    float size = v.size();
-    for (float i = 0; i < size; i++) {
-        float smoothing = (i+1)/size;
-        std::cout << v[i] << "smoothed by"  << smoothing << " is weighted..." << (v[i] * smoothing) << endl;
-        wa.push_back(v[i] * smoothing);
-    }
-    return std::accumulate(wa.begin(), wa.end(), 0.0)/wa.size(); 
-}
-
-float synapse::getEMA(std::vector<float> v){
-    float EMA;
-    if(v.size() > 1){
-        float mult = 2 / (v.size()+ 1);
-        float ma = std::accumulate(v.begin(), v.end(), 0.0)/v.size();
-        float EMA = (v[v.size()-1] - ma) * mult + ma;   
-        std::cout << v.size() << endl;
-        std::cout << v[v.size()-1] << " EMA is "  << EMA  << endl;
-        return EMA;
-    }
-    return 0;
-}
-/* 
-Initial SMA: 10-period sum / 10 
-
-Multiplier: (2 / (Time periods + 1) ) = (2 / (10 + 1) ) = 0.1818 (18.18%)
-
-EMA: {Close - EMA(previous day)} x multiplier + EMA(previous day). 
-*/
-

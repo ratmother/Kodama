@@ -4,7 +4,7 @@
 void ofApp::setup(){
     timer = 0;
     system("killall python"); 
-   // system("gcc -v; pwd; python audio_comparative_analysis.py; python emotion_detection.py &");
+    system("gcc -v; pwd; python audio_comparative_analysis.py; python emotion_detection.py &");
     ofBackground(34);
     ofSetFrameRate(60);
     //ofxFifo::make("data/emotion_voice");
@@ -18,7 +18,6 @@ void ofApp::setup(){
     gui.setPosition(20, 150);
     gui.add(smoothing.setup  ("Smoothing", 0.0, 0.0, 1.0));
     test1.setup("learning_sounds/beatTrack.wav");
-   
 }
 
 //--------------------------------------------------------------
@@ -29,30 +28,14 @@ void ofApp::update(){
         boost::split(emotion_split, emotion_pipe, [](char c){return c == ',';}); 
         emotion_voice = emotion_split[0];
         emotion_face = emotion_split[1];
-        emotion_wakeful = emotion_split[2];
-        emotion_face = "happy"; //testing
-        startSynapse(test1, player, emotion_face, emotion_voice, emotion_wakeful);
+        emotion_drowsy = emotion_split[2];
+        startSynapse(test1, player, assignFaceValue(emotion_face), assignVoiceValue(emotion_voice),std::stoi(emotion_drowsy));
         soundBuffer = player.getCurrentSoundBuffer(bufferSize);
         audioAnalyzer.analyze(soundBuffer);
-        //-:get Values:
-        rms     = audioAnalyzer.getValue(RMS, 0, smoothing);
-        power   = audioAnalyzer.getValue(POWER, 0, smoothing);
-        pitchFreq = audioAnalyzer.getValue(PITCH_FREQ, 0, smoothing);
-        pitchConf = audioAnalyzer.getValue(PITCH_CONFIDENCE, 0, smoothing);
-        pitchSalience  = audioAnalyzer.getValue(PITCH_SALIENCE, 0, smoothing);
-        inharmonicity   = audioAnalyzer.getValue(INHARMONICITY, 0, smoothing);
-        hfc = audioAnalyzer.getValue(HFC, 0, smoothing);
-        specComp = audioAnalyzer.getValue(SPECTRAL_COMPLEXITY, 0, smoothing);
-        centroid = audioAnalyzer.getValue(CENTROID, 0, smoothing);
-        rollOff = audioAnalyzer.getValue(ROLL_OFF, 0, smoothing);
-        oddToEven = audioAnalyzer.getValue(ODD_TO_EVEN, 0, smoothing);
-        strongPeak = audioAnalyzer.getValue(STRONG_PEAK, 0, smoothing);
-        strongDecay = audioAnalyzer.getValue(STRONG_DECAY, 0, smoothing);
         mfcc = audioAnalyzer.getValues(MFCC, 0, smoothing);
     }
     timer ++;
     ofSetWindowTitle(ofToString(ofGetFrameRate()));
-    //This should be sent to livepredictions somehow...
 }
 
 //--------------------------------------------------------------
@@ -75,13 +58,41 @@ void ofApp::exit(){
     system("killall python"); 
 }
 
-void ofApp::startSynapse(synapse &input,ofSoundPlayerExtended &splayer, std::string face, std::string voice, std::string drowsy){
+void ofApp::startSynapse(synapse &input,ofSoundPlayerExtended &splayer, float face, float voice, float drowsy){
     if(input.isEnded == true){
-        input.start();
         splayer.load(input.fileName);
         splayer.play();
+        input.cooldown = 600;
     }
     input.update(face, voice, drowsy, splayer.getPosition());
+}
+
+float ofApp::assignFaceValue(std::string face){
+    float output = 0;
+    if(face == "happy"){
+        output =  1000;
+    }
+    if(face == "sad"){
+       output = -250;
+    }
+    if(face == "angry"){
+       output = -300;
+    }
+    return output;
+}
+
+float ofApp::assignVoiceValue(std::string voice){
+    float output = 0;
+    if(voice == "happy"){
+        output =  1000;
+    }
+    if(voice == "sad"){
+       output = -250;
+    }
+    if(voice == "angry"){
+       output = -300;
+    }
+    return output;
 }
 
 //I'm going to remove the video aspect I think, as the X and Y positions from the comparative analysis, and it focuses the project. 
