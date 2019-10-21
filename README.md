@@ -1,65 +1,26 @@
-# **KODAMA**
+Kodama
 
-A Linux Tensorflow based AI which learns about content you enjoy, Kodama plays music and video content for you based on your mood and what you usually like when in that mood.
+Towards a emotional spacial responsive system
 
-This project is being built in Openframeworks (C++) with Python interactions (achieved with ofxFifo). The idea is to have the main bulk of the program in C++ with the Python scripts acting as appendages,this enables faster more modular debugging as the C++ program can run without being rebuilt/re-run while debugging the Python scripts. The usage of Python also enables easier use of ready-made Keras models.
+A lot of the research and application in AI is centered around utility for companies, and ultimately capital. There is a lot of thought and work given towards the idea of an AI which understands the 'why', or AI which better mirrors the world. Kodama is a move to redirect the goals and paths of the utility of machine learning. 
 
-This is the current working description, likely to change.
+Instead of mirroring the world (datasets, detected objects, models), we work with the philosophy of adding or multiplying the world. Accuracy to replication is not the goal. 
+
+This idea isn't new, companies such as Facebook and Google are able to multiply users worlds within their system with intricate suggestion algorithms leveraging state of the art machine learning techniques. The problem with is it is their system and their bottom line. Advertising and user retention. While they are pushing boundaries of technology, they ultimately restrict the boundaries of users. The user is kept within coddled architecture by whatever means has been understood to extend their stay. The user is not in a relationship with the system but a casuality or victim of it, not unlike livestock. The only way to influence suggestion systems such as Youtube is to partake in what the suggestion system pre-intuits is desirable behaviour. 
+
+The ability for machine learning to create content treadmills that retain attention is terrifying, mostly because the intent behind the system is not unlike television. It is refined television, the pace at which the television can update its content cycle is a few order of magnitudes faster and on top of this, it is capable of targeting the individual. This genius move leverages Youtubes vast amount of content. 
+
+under written warning
+
+To undermine this the idea is to create a living system with superfical mood-states and responsivness, the underlying intent is not hidden but not explicitable or intending control. Say the system notices the user is very neutral or very sad, it could attempt to show funny imagery, in could play fun music or it could just play neutral or sad music. In this case, the explicit action of the system allows for more nuanced learning -- it tests how the user REACTs to these attempts at mood changing, something a recoomendation system intent on proviidng the user with their desires for the purposes of retention cannot risk doing (regardless of it being potentially worthwhile in the long run, its obvious by now companies rarely see very far ahead of thesemlves).on top of this, nothing is considered 'negative' or 'positive' outright, the system learns tyical reactions in learning-states and then reacts to those reactions in the futures with this information. this could be changed in some intialization parameter or breding. 
+
+The system then acts as an entity or 'friend', the system could have different configurations or personaltiies, bias for certain types of content, etc. User can throw away different congifurations if they dont like them, breed them, etc. potential for users to collect these 'highly personalized content interactors', share them, etc. all in all an absurd idea that runs counter intutively to the 'hidden' livestockization on youtube etc. re-situates user-data learning to be a product of the user(s). 
+
+The re-situating of a suggestion machine from retention-oriented to experienced and interaction oriented is key, it is also likely to be unpopular unless executed quite well. The rise of something like youtube is not a criminal injection, it is within the trend of advertisment entertainment. the only utility it has is potentially therapy, intrigue, background tech. background tech is interesting, because it doesnt nessesarily want attention, it will have learned something to do when there is no one about. i picture it being in a space with people relaxing, like it is some kind of mood machine. 
+
+IT should take the sounds it hears to produce sounds with! come on ! thats great... lot of work though. or maybe find similar sounds to what its hearing, really love that idea.
 
 
-Notes:
+with the ability to take into account mood and business, the addition of the utilization of the cadence and brightness of the sound is super key.... I belive the entire project rests on this now. we could do the same with images, but that has proven somewhat problematic and difficult... there is time though. i highly reccomend this idea be fleshed out as it affirms the project as having an actual not-utilitarian utility rather than just being a half-idea like it is without the sound-reflection IT IS KEY 
 
-Name ideas:
-Kodama Emotional Support System 
-Kess
-
-(!!!) <== Nessesary for Kodama to be at all functional
-
-
-------USER EMOTION DETECTORS--------
-Below will share a similar system which detects happiness/sadness(up/down) and excited/bored(right/left).
-Sadness = lazy, ambient, moody, dark, atonal, minor.
-Happiness = wakeful, bright, cheerful, major.
-System is biased towards 'wanting' to create happiness ut not excitement (happy/excited are two different parameters).
-excitement/bored are neutral parameters (not all situations call for excitement).
-attention is a secondary (but important) 'desire'. System learns what creates maximum amount of attention and happiness.
-Good for kids, music events, installastions -- would be quite draining as a personal program I think but perhaps has some kind of theraputic benefit. Its potential utility for a single device user would be the mood following, perhaps there could be three modes which act slightly different (one for installation/event, children, and single user). Single user version wouldn't desire attention as much and would focus on the playlist system, whereas children/installation version would.
-
-Emotion Detection (Face) -- Ready.
-
-Emotion Detection (Voice) -- OfxAudioAnalyzer to python working, python back to Ofx not working yet.
-
-Gesture detection -- Nothing yet (!!!).
-
-Attention detection -- Nothing yet.
-
-------CONTENT LEARNING--------------
-
-Darknet Detection -- Python Ready. Need to try it with openframeworks.
-
-Bitwig OSC into OFX -- Bitwig is up and running, has audio engine problems however.
-
-Playlist system -- Nothing yet (!!!).
-
------KODAMA-------------------------
-
-Association Learning -- Nothing yet.
-
-Generative Music -- Nothing yet (Bitwig or puredata).
-
-Responsive video content -- Nothing yet (Darknet required).
-
-Anime girl AI graphic content -- Nothing yet.
-
-IDEAS:
-
-If you yell angrily at Kodama she should become upset and teary eyed!
-
-For voice input filter out the low end. Make sure in installtion set up the speakers are directed away from the mic and the audio pick up thresold is high enough (avoid feedback loop). If nothing works, have her listen only when she isn't playing music. (there should always be very soft ambient music on even in this off peiord)
-
-Kodama learns music features AND learns what music features tie to what musical parameters rather than tie music pars to emotions
-
-Create a character generator with cute space cats...?
-
-In the GDC talk for Florence at 17:36 he discuesses an idea for a game which scrolls like social media or a website, this has given me inspiration for an idea. Same concept, white BG black outlined squares, but, content generated by Kodama is put inside the squares (which appear and then pile up like social media messaging), Kodama herself appears in some of the boxes and comments on the current emotional stability of the user in some crpytic fanciful way. Whats wonderful about this is that instead of Kodama just presenting the user with content, one at a time, the user can now engage with the content in some way which opens up the application for more complexities. e.g the user can scroll back up and see what kodama had recently showed them, the user can click on the comic-like boxes and kodama can give some information regarding the users typical reaction to this type of content. additionally, this is perfect for the application being on a phone system like android. 
 

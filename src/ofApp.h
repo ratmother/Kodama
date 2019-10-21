@@ -9,6 +9,7 @@
 #include "ofSoundPlayerExtended.h"
 #include <boost/algorithm/string.hpp>
 
+
 class ofApp : public ofBaseApp{
 
 	public:
@@ -17,7 +18,8 @@ class ofApp : public ofBaseApp{
 		void draw();
         void exit();
 		void keyPressed(int key);
-        void startSynapse(synapse &input, ofSoundPlayerExtended &splayer, float face, float voice, float drowsy);
+        void runSynapse(synapse &input, ofSoundPlayerExtended &splayer);
+        void inpDif (dectExpr &dec);
         //OFXAUDIOANALYZER
         ofxAudioAnalyzer audioAnalyzer;
         ofSoundBuffer soundBuffer;
@@ -29,14 +31,18 @@ class ofApp : public ofBaseApp{
         ofxPanel gui;
         ofxFloatSlider smoothing;
         //OFXFIFO
-        float assignFaceValue(std::string face);
-        float assignVoiceValue(std::string voice);
-        std::string emotion_face;
-        std::string emotion_voice;
-        std::string emotion_drowsy;
+        float assignFaceValue(dectExpr faceIn);
+        float assignVoiceValue(dectExpr voiceIn);
+        dectExpr voice;
+        dectExpr face;
+        dectExpr drowsy;
+        dectExpr movement;
+        std::string last_face;
+        int face_cons_multipler = 0;
         ofxFifo::vidWriteThread vwt;
         std::vector<std::string> emotion_split;
         std::string emotion_pipe;
         int timer;
-        synapse test1;
+        int long_timer;
+        synapse test1;       
 };

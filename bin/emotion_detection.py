@@ -1,3 +1,4 @@
+import imutils
 from statistics import mode
 import cv2
 from keras.models import load_model
@@ -23,6 +24,18 @@ from utils.preprocessor import preprocess_input
 # The resulting vocal emotion is sent back to C++.
 # The facial emotion detection simply sends whatever emotion it captures to C++. In the future I could have C++ send the facial data to be classified which is probably more efficient.
 # I've placed these two models in the same script for more seamless debugging and simplicity, the plan is to have a seperate script for both gesture and Darknet if I go that route.
+# OpenCV Motion Detector by methylDragon, implemented into this script by me.
+
+# motion detector variables
+FRAMES_TO_PERSIST = 1
+MIN_SIZE_FOR_MOVEMENT = 1200
+MOVEMENT_DETECTED_PERSISTENCE = 100
+con_mult = 0
+first_frame = None
+next_frame = None
+font = cv2.FONT_HERSHEY_SIMPLEX
+delay_counter = 0
+movement_persistent_counter = 0
 
 # parameters for loading data and images
 detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml' 
@@ -68,7 +81,7 @@ emotion_window = []
 cv2.namedWindow('window_frame')
 video_capture = cv2.VideoCapture(0)
 
-#Main loop for all three detection algorithms
+#Main loop for all four detection algorithms
 while True:
 
     #DROWSY DETECTION LOOP
@@ -156,17 +169,7 @@ while True:
         except:
             continue
 
-        if emotion_text == 'angry':
-            color = emotion_probability * np.asarray((255, 0, 0))
-        elif emotion_text == 'sad':
-            color = emotion_probability * np.asarray((0, 0, 255))
-        elif emotion_text == 'happy':
-            color = emotion_probability * np.asarray((255, 255, 0))
-        elif emotion_text == 'surprise':
-            color = emotion_probability * np.asarray((0, 255, 255))
-        else:
-            color = emotion_probability * np.asarray((0, 255, 0))
-
+        color = emotion_probability * np.asarray((255, 255, 255))
         color = color.astype(int)
         color = color.tolist()
         emotion_face = "Face:" + emotion_mode
@@ -177,10 +180,77 @@ while True:
                   color, 0, -45, 1, 1)
         draw_text(face_coordinates, rgb_image, emotion_voice,
                   color, 0, -75, 1, 1) 
-
         draw_text(face_coordinates, rgb_image, emotion_drowsiness, color, 0, -100, 1, 1) 
+        
+    # MOTION DETECTION LOOP
+    transient_movement_flag = False
+    
+    # Read frame
+    ret, frame = video_capture.read()
+    text = "Unoccupied"
 
-    emotionOut = vocalEmotion + "," + faceEmotion + "," + drowsyEmotion
+    # Resize and save a greyscale version of the image
+    frame = imutils.resize(frame, width = 750)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Blur it to remove camera noise (reducing false positives)
+    gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+    # If the first frame is nothing, initialise it
+    if first_frame is None: first_frame = gray    
+
+    delay_counter += 1
+    
+    if delay_counter > FRAMES_TO_PERSIST:
+        delay_counter = 0
+        first_frame = next_frame
+
+        
+    # Set the next frame to compare (the current frame)
+    next_frame = gray
+
+    # Compare the two frames, find the difference
+    frame_delta = cv2.absdiff(first_frame, next_frame)
+    thresh_motion = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+
+    # Fill in holes via dilate(), and find contours of the thesholds
+    thresh_motion = cv2.dilate(thresh_motion, None, iterations = 2)
+    cnts, _ = cv2.findContours(thresh_motion.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # loop over the contours
+    for c in cnts:
+
+        # Save the coordinates of all found contours
+        (x, y, w, h) = cv2.boundingRect(c)
+        
+        # If the contour is too small, ignore it, otherwise, there's transient
+        # movement
+        if cv2.contourArea(c) > MIN_SIZE_FOR_MOVEMENT:
+            transient_movement_flag = True
+            # Draw a rectangle around big enough movements
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    # The moment something moves momentarily, reset the persistent
+    # movement timer.
+    if transient_movement_flag == True:
+        movement_persistent_flag = True
+        movement_persistent_counter += 1 + con_mult
+        con_mult += 10 #This benefits smooth consistent motion, not nessesarily dancing...
+    else:
+        if movement_persistent_counter > 0:
+            movement_persistent_counter -= 0.7 * movement_persistent_counter
+            if con_mult > 10:
+                con_mult -= 10
+
+    # As long as there was a recent transient movement, say a movement
+    # was detected    
+    if movement_persistent_counter > 0:
+        movement_persistent_counter -= 0.01 * movement_persistent_counter
+    else:
+        con_mult = 0
+
+    motionDetect = str(round(movement_persistent_counter,2))
+    emotionOut = vocalEmotion + "," + faceEmotion + "," + drowsyEmotion + "," + motionDetect 
     fifoutil.write_txt(emotionOut.encode(), "data/emotion_out") #Sends emotions to the pipe to be picked up by openframeworks.
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
