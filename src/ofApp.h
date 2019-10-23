@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ofMain.h"
-#include "ofxAudioAnalyzer.h"
 #include "ofxGui.h"
 #include "synapse.h"
 #include "ofxFifo.h"
@@ -19,10 +18,8 @@ class ofApp : public ofBaseApp{
         void exit();
 		void keyPressed(int key);
         void runSynapse(synapse &input, ofSoundPlayerExtended &splayer);
+        void updateSynapse(synapse &input, ofSoundPlayerExtended &splayer);
         void inpDif (dectExpr &dec);
-        //OFXAUDIOANALYZER
-        ofxAudioAnalyzer audioAnalyzer;
-        ofSoundBuffer soundBuffer;
         ofSoundPlayerExtended player;
         int sampleRate;
         int bufferSize;
@@ -42,7 +39,13 @@ class ofApp : public ofBaseApp{
         ofxFifo::vidWriteThread vwt;
         std::vector<std::string> emotion_split;
         std::string emotion_pipe;
+        std::vector<std::string> names_split;
+        std::string file_names;
+        std::string file_path;
+        std::string sound_index_pipe;
+        std::vector<std::string> index_split; 
+        std::vector<int> index_conv; //Probably not the best way to do this.
+        std::vector<synapse> synapses;
         int timer;
-        int long_timer;
-        synapse test1;       
+        int long_timer;   
 };

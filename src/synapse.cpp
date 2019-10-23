@@ -1,20 +1,18 @@
 #include "synapse.h"
 
-//TO DO: Attention and movement detection, test vocal detection, implement PCA into synapse.
+//TO DO: test vocal detection, implement PCA into synapse.
 //Once thats done we need to start testing. Everything works? Try implementing the video aspect of it.
-// A 'potential to change current emotion' function should be added, it fits the philosophical theme.
 
 void synapse::setup(std::string file){
     fileName = file;    
     isEnded = true;
-    std::cout <<  "Synapse set up ... " << file << endl;
+    //std::cout <<  "Synapse set up ... " << file << endl;
 }
-
-//Synapses for sound include the PCA x and y coordinates for giving unlearned content an estimated emotional value.
-void synapse::setCoord(float xin, float yin){
-    x = xin;
-    y = yin;
-}
+/*
+    The update function takes in all the dectExpr's and adds them to the weighted average vector system.
+    Effectively, each synapse 'knows' the average expression value it correlates to for each type (e.g movement, facial expression)
+    and how volatile the value tends to be. e.g A synapse knows that it 'causes' stable facial happiness, sudden drowsiness, and sudden low movement.
+*/
 
 void synapse::update(dectExpr &input_face, dectExpr input_voice, dectExpr input_drowsy, dectExpr input_movement, float position){ //float movement, float attention...make vector?
     if(position < 0.95){
@@ -33,7 +31,6 @@ void synapse::update(dectExpr &input_face, dectExpr input_voice, dectExpr input_
         if(cooldown < 10){
             face_result = getWeightedAverage(face_data, face_snapshots, 3, avg_face);
             movement_result = getWeightedAverage(movement_data, movement_snapshots, 3, avg_movement);
-            //std::cout << movement_result << endl;
             voice_result = getWeightedAverage(voice_data, voice_snapshots, 3, avg_voice);
             drowsy_result = getWeightedAverage(drowsy_data,drowsy_snapshots, 3, avg_drowsy);
             cooldown = 600;
@@ -49,9 +46,8 @@ void synapse::draw(){
     ofDrawBitmapStringHighlight("Average Movement Expression: "+ofToString(movement_result),0,100);
     ofDrawBitmapStringHighlight("Average Drowsiness: "+ofToString(drowsy_result),0,125);
     ofDrawBitmapStringHighlight("Average Vocal Expression: "+ofToString(voice_result),0,150);
-
     ofDrawBitmapStringHighlight("Facial Expression Volatility: "+ofToString(face_volt),0,200);
-    ofDrawBitmapStringHighlight("Facial Expression Volatility: "+ofToString(movement_volt),0,250);
+    ofDrawBitmapStringHighlight("Movement Expression Volatility: "+ofToString(movement_volt),0,250);
 }
 
 float synapse::getAverage(std::vector<float> &v, float input){
@@ -59,13 +55,17 @@ float synapse::getAverage(std::vector<float> &v, float input){
     return std::accumulate(v.begin(), v.end(), 0.0)/v.size();
 }
 
+/* 
+    This function was inspired by attempting to get an EMA (exponential moving average) to work, is in't an EMA though.
+    It simply takes the most recent entries (span), averages them, and adds( +, so can be negative) half of the difference 
+    (to the overall entries) to the average of all the entries.
+    After the size of the input vector reaches span, the fv (front vector of size span) will start to diverge from the 
+    input vector more and more as entries are added.
+*/
 
-//This function was inspired by attempting to get an EMA (exponential moving average) to work, is in't an EMA though.
-//It simply takes the most recent entries (span), averages them, and adds( +, so can be negative) half of the difference (to the overall entries) to the average of all the entries.
-//After the size of the input vector reaches span, the fv (front vector of size span) will start to diverge from the input vector more and more as entries are added.
 float synapse::getWeightedAverage(std::vector<float> &v, std::vector<float> &snapshots, int span, float average){
     snapshots.clear();
-    if(average != 0){ //Averages of 0 mean that the input is very likely not recieving any interesting information. Neutral inputs that hover near zero will still go through.
+    if(average != 0){ // Averages of 0 mean that the input is very likely not recieving any interesting information. Neutral inputs that hover near zero will still go through.
         v.push_back(average);
         if(v.size() > span){
             std::vector<float> fv = v;
@@ -78,17 +78,9 @@ float synapse::getWeightedAverage(std::vector<float> &v, std::vector<float> &sna
             }
             float maj = std::accumulate(v.begin(), v.end(), 0.0)/v.size();
             float min = std::accumulate(fv.begin(), fv.end(), 0.0)/fv.size();
-            std::cout << min << " the fv averaged and " << maj << " the overall average, results in " << (((min - maj)/2) + maj) << endl;
+            // std::cout << min << " the fv averaged and " << maj << " the overall average, results in " << (((min - maj)/2) + maj) << endl;
             return (((min - maj)/2) + maj);
         }
     }
     return std::accumulate(v.begin(), v.end(), 0.0)/v.size();
 }
-
-//Synapses for video could include whats in the video, e.g 'dog', 'human'. 
-//Synapses for behaviours (UI behaviours) cfould include colours, speed, strength.
-//Proactive and reactive states of behaviours (set by user), e.g, depressive states avoided (proactive) or complimented by known-depressive content (reactive)
-
-//Idea, two settings: simple (party mode, baby mode and proactive or reactive) or advanced mode (allowing user to set how much sad or happy is awarded)
-//Ergo, a user could set up Kodama to be scary if they wanted to use it for halloween(desiring fear), or relaxed (desiring minmial movement) if they want to relax.
-//The CIA could use it to find what spooks someone the most! Spooky!
