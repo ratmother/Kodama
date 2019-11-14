@@ -51,5 +51,20 @@ Later on in the day I fixed the cryptic error with ALSA by changing the device i
 
 I've mostly finialized whats been in the works for a few weeks now, adding for loops and vectors and connecting the audio analysis python script to C++ properly. Now to test how many much it can handle, I also need to get a working mircophone to properly test the user experience when it comes to audio-reflection. I can still start to work on the 'reccomendation' (checking synapses expression values, eg. play what is known to cause happiness/movement out of the nearest sounds to the mic input) system for the synapses in the mean time. 
 
+24th Oct: I've fixed up the audio analysis script so that it saves out feature data using pickle and reads it using pickle(avoiding having to process large directories of sounds more than once) and it works perfectly. Even with a far larger amount of files than before, the PCA real-time analysis is pretty quick. Obviously the intial feature extraction is much longer, but with the saving-out feature, thats totally acceptable. Openframeworks' soundplayer is reponsive and can play multiple files at the same time, the interaction between the script and Openframeworks is very perfomative thanks to the simplicity of the information being exchanged. Right now, the system plays sounds similar to the microphone input (which is static noise at the moment due to some problems with my computers microphone) , 5 sounds at a time with each key press. I'll need to start creating the system which governs which of the nearest sounds to play based on their synapse information. 
+
+24th Oct - 14th Nov: I waited to get a microphone before further testing (of audio_comparative_analysis.py) and have been testing the systems ability to correctly select similar sounds to microphone input for a few days. It wasn't easy to convert microphone input into something which librosa can use, I had to do a lot of digging and found this post https://blog.francoismaillet.com/epic-celebration/ which allowed me to rethink my method of microphone-to-buffer-to-librosa. I took the ring buffer in callback idea from here. Testing shows that the system detects things generally well now, whereas before it was chaotic and impossible to test, but further testing with a bigger dataset is required. The system will play drum-like sounds when listening to drummers, and will play human sounds when listening to humans, as predicted and intended the system will play sounds that are not immediately obviously related to what its listening to but shares qualities.
+
+It was a bit of a shot in the dark, I didn't know if the methods I was using to store audio information into the buffer would come out the same as how the audio files are loaded in via librosa.load(). But because the epic-celebration blog post is doing something similar to me, I hoped that whatever the blogger is not showing about their system wouldn't be a problem and it doesn't seem to be. 
+
+A few problems I could see occuring in the future is:
+
+How exactly does the difference in time between the audio files effect the system? The epic-celebration system requires similarly timed inputs because all of its dataset uses the same amount of time. What am I sacrificing (or frankly completely missing) by ignoring time? I specficially chose a non-time based MFCC feature calculator to avoid time, it simply collects an average of all the MFCCs in a file at a set amount, but I do not know how this might effect the overrall system.
+
+The system might be sensetive to different mircophones.
+
+It seemed like the system factored in loudness too much, when I turned down the mic input it seemed to become more accurate, it might not be a bad idea to add information to the data so that its not just using MFCCs. Or perhaps even out the loudness of the data somehow. 
+
+
 
 

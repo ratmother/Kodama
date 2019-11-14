@@ -5,11 +5,38 @@ import pickle
 import fifoutil
 import numpy as np
 import pyaudio
+import time
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors as KNeighbor
+import wave
+
+# https://scimusing.wordpress.com/2013/10/25/ring-buffers-in-pythonnumpy/
+class RingBuffer():
+    "A 1D ring buffer using numpy arrays"
+    def __init__(self, length):
+        self.data = np.zeros(length, dtype='f')
+        self.index = 0
+
+    def extend(self, x):
+        "adds array x to ring buffer"
+        x_index = (self.index + np.arange(x.size)) % self.data.size
+        self.data[x_index] = x
+        self.index = x_index[-1] + 1
+
+    def get(self):
+        "Returns the first-in-first-out data in the ring buffer"
+        idx = (self.index + np.arange(self.data.size)) %self.data.size
+        return self.data[idx]
+
+def ringbuff_numpy_test():
+    ringlen = 100000
+    ringbuff = RingBuffer(ringlen)
+    for i in range(40):
+        ringbuff.extend(np.zeros(10000, dtype='f')) # write
+        ringbuff.get() #read
 # Simplified and modified script to only use PCA with MFCC by ratmother, original from https://gist.github.com/fedden/52d903bcb45777f816746f16817698a0#file-dim_reduction_notebook-ipynb
 # From the Medium article https://medium.com/@LeonFedden/comparative-audio-analysis-with-wavenet-mfccs-umap-t-sne-and-pca-cb8237bfce2f
 # Why PCA and MFCC over wavenet and TSNE? Its faster + I'm using MFCC's already. PCA/MFCC is fast and currently the plan for Kodama is to have the user be able to add
@@ -24,13 +51,12 @@ directory = './data/learning_sounds'
 dataset = []
 sample_rate = 44100
 mfcc_size = 13
-read_input = False # Read the saved features.
-comp_data = True # Compose input data from a directory into saved features.
+read_data = True # Read the saved features.
+comp_data = False # Compose input data from a directory into saved features.
 buffer_input = True # Input sound from microphone and run the comparative analysis.
-
 # Note: n_components should be tested with different values to see what works best. 
 def get_pca(features):
-    pca = PCA(n_components=2)
+    pca = PCA(n_components= 5)
     transformed = pca.fit(features).transform(features)
     scaler = MinMaxScaler()
     scaler.fit(transformed)
@@ -39,10 +65,12 @@ def get_pca(features):
 def get_nearest(pca_coords, n_neigh, rad):  
     neigh = KNeighbor(n_neigh, rad)
     neigh.fit(pca_coords)
+    print(pca_coords[-1])
     return neigh.kneighbors([pca_coords[-1]], n_neigh, return_distance=False) # -1 is the newest addition, which in this case is real time microphone input.
 
 def get_features(data_, dataset_, file_):
     # file_ isn't always a file name,  eg. it is called "INPUT" when the source is microphone/ input.
+    # This function extracts mfcc data from the file and places it into the dataset along with the name of the file.
             trimmed_data, _ = librosa.effects.trim(y=data_)
             mfccs = librosa.feature.mfcc(trimmed_data, 
                                      sample_rate, 
@@ -58,18 +86,24 @@ def get_features(data_, dataset_, file_):
             concat_features = np.hstack((stddev_mfccs, mean_mfccs))
             concat_features = np.hstack((concat_features, average_difference))
             #print("features saved from " + file_)
+            #print(concat_features)
             dataset_ += [(file_, concat_features)]
 
-#   When learning a directory, this should be set to false. It loads the compared data. 
-if read_input == True:
-    file_in = open("pca_data.pkl",'rb')
-    input_pca_data = pickle.load(file_in)
-    pca_data = input_pca_data
-    file_in.close()
-# Here, the feature data is gathered from a directory of sounds and saved with pickle.
-elif comp_data == True: 
+# Note: If anything changes about the content in the directory of sounds, you must run get_features again before get_saved_features.
+def get_saved_features(saved_features, dataset_, file_):
+            print(file_)
+            print(saved_features)
+            dataset_ += [(file_, saved_features)]
+
+
+# Here, the feature data is gathered from a directory of sounds. This processes the feature data of each sound file, taking some time.
+# We also save out the names in the correct index order so that Openframeworks knows which sound the resulting indexes point to.
+# This is important as the real time analysis of nearest neighbour gives us the nearest sounds in the form of indexes. 
+if comp_data == True: 
+    count = 0
     for file in os.listdir(directory):
         if file.endswith('.wav') or file.endswith('.Wav'):
+            count += 1
             file_path = os.path.join(directory, file)
             try:
                 data, _ = librosa.load(file_path)
@@ -77,54 +111,88 @@ elif comp_data == True:
             except:
                 print("MFCC/Read error!")
     all_file_paths,mfcc_features = zip(*dataset)
+    file_out = open("feature_data.pkl","wb")
+    pickle.dump(mfcc_features, file_out)
+    file_out.close()
     mfcc_features = np.array(mfcc_features)
     pca_mfcc = get_pca(mfcc_features)
     pca_data = zip(pca_mfcc,all_file_paths)
-    file_out = open("pca_data.pkl","wb")
-    pickle.dump(pca_data, file_out)
-    file_out.close()
-    pca_mfcc_string = str(pca_mfcc)
     file_paths_string = ','.join(all_file_paths)
     file_paths_string = file_paths_string.replace("'", '')
     file_paths_string = file_paths_string.strip()
     #print(file_paths_string)
-    fifoutil.write_txt(pca_mfcc_string.encode(), "data/pca_out") 
+    print(count)
     fifoutil.write_txt(file_paths_string.encode(), "data/sound_names_out") 
-    #print(pca_mfcc_string)
+
+# After comp_data is done, a .pkl file contains all the feature data of the dataset, and can be accessed quickly via pickle below.
+# Its important that if there are any changes to the content of the sound directory, that comp_data be re-ran.
+if read_data == True:
+    file_in = open("feature_data.pkl",'rb')
+    conv_saved_features = pickle.load(file_in)
+    conv_saved_features = np.array(conv_saved_features)
+    index = 0
+    for file in os.listdir(directory):
+        if file.endswith('.wav') or file.endswith('.Wav'):
+            file_path = os.path.join(directory, file)
+            if index <= len(conv_saved_features):
+                get_saved_features(conv_saved_features[index], dataset, file)
+            index += 1 
+
+ringBuffer = RingBuffer(5 * 44100)
+timer = 0
+
+def callback(in_data, frame_count, time_info, flag):
+    global timer
+    audio_data = np.fromstring(in_data, dtype=np.float32)
+    timer += 1
+    ringBuffer.extend(audio_data)
+    if timer > 10:
+        timer = 0
+        get_features(ringBuffer.get(), dataset, "INPUT") # Input is the name of the data chunk, whereas all other 'data chunks' have file .wav names.
+        all_file_paths,mfcc_features = zip(*dataset)
+        mfcc_features = np.array(mfcc_features)
+        pca_mfcc = get_pca(mfcc_features)
+        nearest_files = []
+        nearest_display = []
+        nearest = get_nearest(pca_mfcc, 5, 0.2)
+        for i in range (0,5): # We ignore first entry as this is just the input, as the input is nearest to itself.
+            nearest_files.append(str(nearest[0][i]))
+            nearest_display.append(all_file_paths[nearest[0][i]])
+        nearest_files = ','.join(nearest_files)
+        nearest_files = nearest_files.replace("'", '')
+        del dataset[-1] # Deletes the input from the dataset, we've used it for the PCA and nneighbour analysis and don't need it there anymore.
+        fifoutil.write_txt(nearest_files.encode(), "data/sound_ids") 
+        print("nearest sounds are " + str(nearest_display))
+    return (in_data, pyaudio.paContinue)
 
 
+CHUNK = 1024
+INDEX = 7
+CHANNELS = 1
+RATE = 44100
+RECORD_SECONDS = 1
+FORMAT = pyaudio.paFloat32
 
-# If there is a buffer input, we get its features, apply PCA to it and then nearest neighbour. As a result, we get a selection of similar sounds.
-stream = p.open(input_device_index = 0, format=pyaudio.paFloat32,
-                channels=1,
-                rate=44100,
+if buffer_input == True:
+    stream = p.open(input_device_index = INDEX, format= FORMAT,
+                channels= CHANNELS,
+                rate= RATE,
                 input=True,
-                frames_per_buffer=1024)
+                frames_per_buffer= CHUNK, 
+                stream_callback = callback)
 
-while True:
-    if buffer_input == True:
 
-            frames = []
+    for i in range(p.get_device_count()):
+        print p.get_device_info_by_index(i).get('name')
 
-            for i in range (0,10):
-                buffer = stream.read(1024, exception_on_overflow = False)
-                nfloat = librosa.util.buf_to_float(buffer, 4)
-                frames.append(nfloat) # Collects the converted buffer-to-float data chunk into frames.
+    print p.get_default_input_device_info()
 
-            data = np.concatenate(frames) # All the collected data chunks are put into one array. 
-            get_features(data, dataset, "INPUT") # Input is the name of the data chunk, whereas all other 'data chunks' have file .wav names.
-            all_file_paths,mfcc_features = zip(*dataset)
-            mfcc_features = np.array(mfcc_features)
-            pca_mfcc = get_pca(mfcc_features)
-            nearest_files = []
-            nearest_display = []
-            nearest = get_nearest(pca_mfcc, 5, 0.4)
-            del dataset[-1] # Deletes the input from the dataset, we've used it for the PCA and nneighbour analysis and don't need it there anymore.
-            for i in range (1,4): # We ignore first entry as this is just the input, as the input is nearest to itself.
-                nearest_files.append(str(nearest[0][i]))
-                nearest_display.append(all_file_paths[nearest[0][i]])
-            nearest_files = ','.join(nearest_files)
-            nearest_files = nearest_files.replace("'", '')
-            fifoutil.write_txt(nearest_files.encode(), "data/sound_ids") 
-            #print(nearest_display)
-  
+
+# start the stream
+    stream.start_stream()
+
+    while stream.is_active():
+        time.sleep(0.25)
+
+    stream.close()
+    p.terminate()
