@@ -3,7 +3,7 @@
 
 void ofApp::setup(){
     timer = 0;
-    system("killall python"); 
+    //system("killall python"); 
    // system("gcc -v; pwd; python audio_comparative_analysis.py; python emotion_detection.py &");
     ofBackground(34);
     ofSetFrameRate(60);
@@ -25,7 +25,6 @@ void ofApp::setup(){
 void ofApp::update(){    
     if(timer >= 30){ // Nothing below requires precise real time analysis, so weight is taken off of computation this way.
         timer = 0;
-        long_timer ++;
         emotion_pipe = ofxFifo::read_str("data/emotion_out");
         boost::split(emotion_split, emotion_pipe, [](char c){return c == ',';}); 
         voice.input = emotion_split[0];
@@ -38,9 +37,7 @@ void ofApp::update(){
         movement.conv = std::stof(movement.input);
         inpDif(face);
         inpDif(movement);
-        if (long_timer >= 25){
-            long_timer = 0;
-        }
+        playNearest();
         for(int i = 0; i < synapses.size(); i++ ){
             updateSynapse(synapses[i], player);
         }
@@ -50,27 +47,52 @@ void ofApp::update(){
 }
 
 void ofApp::draw(){
+    ofBackground(34);
     gui.draw();
     ofSetColor(255);
     ofSetColor(ofColor::hotPink);
-}k
+    for(int i = 0; i < synapses.size(); i++ ){ //this is probably sub-optimal..
+        if(synapses[i].isEnded == false){ 
+            displayed_synapses.push_back(& synapses[i]);
+            if(displayed_synapses.size() >= 4){
+                displayed_synapses.erase(displayed_synapses.begin());
+            }
+        }
+    }
+    for(int i = 0; i < displayed_synapses.size(); i++ ){
+        displayed_synapses[i]->draw(i);
+    }
+}
 
-void ofApp::keyPressed(int key){
+void ofApp::playNearest(){
     //get synapse with least distance from desired emotional object state (not yet created)
     sound_index_pipe = ofxFifo::read_str("data/sound_ids");
     boost::split(index_split, sound_index_pipe, [](char c){return c == ',';});
-    for(int i = 0; i < index_split.size(); i++ ){
-        index_conv.push_back(std::stoi(index_split[i]));
-        runSynapse(synapses[index_conv[i]], player);
+    int rand = (int) ofRandom(0,index_split.size());
+    int str_to_int = std::stoi(index_split[rand]);
+    if(str_to_int > synapses.size()){ // This is kinda hacky and probably not optimal, the whole way I'm currently doing directory/file name stuff seems a bit wrong.
+        std::cout <<  "this is new right " << endl;
+        file_names = ofxFifo::read_str("data/sound_names_out");
+        boost::split(names_split, file_names, [](char c){return c == ',';});
+            for (int i = 0 + synapses.size(); i < names_split.size(); i++ ){
+                file_path = "learning_sounds/";
+                synapse in;
+                file_path.append(names_split[i]); 
+                in.setup(file_path);
+                synapses.push_back(in);
+            }
+        runSynapse(synapses[str_to_int], player);  
+    } else {
+        runSynapse(synapses[str_to_int], player);  
     }
-    index_conv.clear();
 }
 
 void ofApp::exit(){
-    system("killall python"); 
+   // system("killall python"); 
 }
 
 void ofApp::runSynapse(synapse &input,ofSoundPlayerExtended &splayer){
+    std::cout << input.fileName << endl;
     splayer.load(input.fileName);
     splayer.play();
     input.cooldown = 600;
@@ -85,8 +107,8 @@ void ofApp::updateSynapse(synapse &input, ofSoundPlayerExtended &splayer){
 
 
 /*
-    inpDif is the function which takes in a specfic dectExpr (struct which each type of input has, e.g facial expression, movement...) 
-    and measures the stability of its current value (conv, short for converted-input), and then stores how much distance there is between
+    inpDif is the function which takes in a specfic dectExpr (struct which each type of world-input has, e.g facial expression, movement...) 
+    and measures the stability of its current value (see variable conv, short for converted-input), and then stores how much distance there is between
     its stable state and the current state. The stable state is a moving average of the past values of the dectExpr's value.
 */
 
@@ -122,9 +144,10 @@ void ofApp::inpDif(dectExpr &dec){
         dec.mvg_avg.erase(dec.mvg_avg.begin());
     }
 }
+
 /*
-    assign___Value functions take dectExpr inputs and convert them to floats, e.g 'happy' input to 1000. 
-    These functions also include other features, such as consistency multiplier.
+    assign___Value functions take dectExpr world-inputs and converts them to floats, e.g 'happy' input to 1000. 
+    These functions also include other features, such as an input consistency multiplier.
 */
 
 float ofApp::assignFaceValue(dectExpr faceIn){

@@ -10,8 +10,8 @@ void synapse::setup(std::string file){
 }
 /*
     The update function takes in all the dectExpr's and adds them to the weighted average vector system.
-    Effectively, each synapse 'knows' the average expression value it correlates to for each type (e.g movement, facial expression)
-    and how volatile the value tends to be. e.g A synapse knows that it 'causes' stable facial happiness, sudden drowsiness, and sudden low movement.
+    Effectively, each synapse 'knows' the average expression value it correlates to for each type of world-input (e.g movement, facial expression)
+    and how volatile the value tends to be. e.g A synapse knows that its activation 'causes' e.g stable facial happiness, sudden drowsiness, and sudden low movement.
 */
 
 void synapse::update(dectExpr &input_face, dectExpr input_voice, dectExpr input_drowsy, dectExpr input_movement, float position){ //float movement, float attention...make vector?
@@ -40,14 +40,15 @@ void synapse::update(dectExpr &input_face, dectExpr input_voice, dectExpr input_
     }
 }
 
-void synapse::draw(){
-    ofDrawBitmapStringHighlight("This Synapse is for: "+fileName,0,50);
-    ofDrawBitmapStringHighlight("Average Facial Expression: "+ofToString(face_result),0,75);
-    ofDrawBitmapStringHighlight("Average Movement Expression: "+ofToString(movement_result),0,100);
-    ofDrawBitmapStringHighlight("Average Drowsiness: "+ofToString(drowsy_result),0,125);
-    ofDrawBitmapStringHighlight("Average Vocal Expression: "+ofToString(voice_result),0,150);
-    ofDrawBitmapStringHighlight("Facial Expression Volatility: "+ofToString(face_volt),0,200);
-    ofDrawBitmapStringHighlight("Movement Expression Volatility: "+ofToString(movement_volt),0,250);
+void synapse::draw(int displace){
+    int offset = displace * 200;
+    ofDrawBitmapStringHighlight("This Synapse is for: "+fileName,0,50 + offset);
+    ofDrawBitmapStringHighlight("Average Facial Expression: "+ofToString(face_result),0,75 + offset);
+    ofDrawBitmapStringHighlight("Average Movement Expression: "+ofToString(movement_result),0,100 + offset);
+    ofDrawBitmapStringHighlight("Average Drowsiness: "+ofToString(drowsy_result),0,125 + offset);
+    ofDrawBitmapStringHighlight("Average Vocal Expression: "+ofToString(voice_result),0,150 + offset);
+    ofDrawBitmapStringHighlight("Facial Expression Volatility: "+ofToString(face_volt),0,175 + offset);
+    ofDrawBitmapStringHighlight("Movement Expression Volatility: "+ofToString(movement_volt),0,200 + offset);
 }
 
 float synapse::getAverage(std::vector<float> &v, float input){
@@ -56,17 +57,15 @@ float synapse::getAverage(std::vector<float> &v, float input){
 }
 
 /* 
-    This function was inspired by attempting to get an EMA (exponential moving average) to work, is in't an EMA though.
-    It simply takes the most recent entries (span), averages them, and adds( +, so can be negative) half of the difference 
-    (to the overall entries) to the average of all the entries.
-    After the size of the input vector reaches span, the fv (front vector of size span) will start to diverge from the 
-    input vector more and more as entries are added.
+    This function was inspired by attempting to get an EMA (exponential moving average) to work. However, whether it classifies as such I'm not sure.
+    It simply takes the most recent entries (span), averages them, and adds( +, so can be negative) half of the difference (to the overall entries) to the average of all the entries.
+    After the size of the input vector reaches span, the fv (front vector of size span) will start to diverge from the input vector more and more as entries are added.
 */
 
 float synapse::getWeightedAverage(std::vector<float> &v, std::vector<float> &snapshots, int span, float average){
     snapshots.clear();
-    if(average != 0){ // Averages of 0 mean that the input is very likely not recieving any interesting information. Neutral inputs that hover near zero will still go through.
-        v.push_back(average);
+    if(average != 0){ // Averages of 0 mean that the input is very likely not recieving any interesting information, 
+        v.push_back(average); // However 0 is still an important input value, just not for the average. Neutral inputs that hover near zero will still go through.
         if(v.size() > span){
             std::vector<float> fv = v;
             fv.erase(fv.begin(),fv.end()-span);

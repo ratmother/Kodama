@@ -16,7 +16,7 @@ class ofApp : public ofBaseApp{
 		void update();
 		void draw();
         void exit();
-		void keyPressed(int key);
+		void playNearest();
         void runSynapse(synapse &input, ofSoundPlayerExtended &splayer);
         void updateSynapse(synapse &input, ofSoundPlayerExtended &splayer);
         void inpDif (dectExpr &dec);
@@ -46,6 +46,8 @@ class ofApp : public ofBaseApp{
         std::vector<std::string> index_split; 
         std::vector<int> index_conv; //Probably not the best way to do this.
         std::vector<synapse> synapses;
+        std::vector<synapse *> displayed_synapses;
         int timer;
-        int long_timer;   
+        int long_timer;
+        int xlt;   
 };

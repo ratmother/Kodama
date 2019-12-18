@@ -2,7 +2,7 @@
 
 #include "ofMain.h"
 
-// Detected inputs, expressions, e.g movement, facial expression, drowsiness. Each type of user input has its own dectExpr. 
+// Detected inputs, expressions, e.g movement, facial expression, drowsiness. Each type of world-input has its own dectExpr. 
 struct dectExpr{
     std::string input;
     std::vector<float> mvg_avg;
@@ -16,7 +16,7 @@ class synapse : public ofBaseApp{
 
 	public:
 		void setup(std::string file);
-        void draw();
+        void draw(int displace);
 		void update(dectExpr &input_face, dectExpr input_voice, dectExpr input_drowsy, dectExpr input_movement, float position);
         float getWeightedAverage(std::vector<float> &v, std::vector<float> &snapshots, int span, float average);
         float getAverage(std::vector<float> &v, float input);
