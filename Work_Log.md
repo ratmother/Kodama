@@ -1,4 +1,4 @@
-WORK LOG https://github.com/ratmother
+﻿WORK LOG https://github.com/ratmother
 
 This is the work log which I write in at least once a week to keep track of progress and changes in development, it is not documentation of changes to the concept or theory of my application, although I will make mention of it. Documentation of that will be found in the Documentation.md file. 
 
@@ -72,4 +72,4 @@ Today I've added a new feature, the script now will record 'abnormal' sounds, so
 
 
 
-
+16th Nov – December 30th: I got a lot done in this period and made signifiant changes to the data pipeline, it is mostly documented in the changes made on github rather than through this work log, so I am going to compare the changes I’ve made to the previous versions on github in another entry to this log when I get the time. Quick summary: I added my own method of segmenting the audio data in both the dataset and the input, the scripts now split audio into chunks of various sizes and extract features from the chunks. In the retrieval part of the system it compares the PCA (using feature vectors) as before, but now instead of whole files or buffers it now only compares  chunks of a similar size and retrieves the nearest chunks audio data.  This is very expensive computationally, especially for ‘real time’ analysis so I did a lot of optimizing (to the best of my ability, its still quite slow). I’ve found this is more accurate then before and has more interesting results e.g Kodama listens to pop music and brings up a selection of differently sized singing samples, drum samples, and samples which sound similar to the musics content. I still don’t know if it is ‘transform-independent’ for lack of a better term, if the features I’m using really capture the essence of the sound-content rather than room, distance, space.
