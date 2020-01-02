@@ -7,6 +7,9 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors as KNeighbor
 import matplotlib.pyplot as plt
+import soundfile as sf
+import random
+import string
 
 mfcc_size = 24
 sample_rate = 44100
@@ -59,6 +62,8 @@ def get_nearest(pca_coords, n_neigh, rad):
     neigh.fit(pca_coords)
     return neigh.kneighbors([pca_coords[-1]], n_neigh, return_distance=False) # -1 is the newest addition, which in this case is real time microphone input.
 
+def random_generator(size=6, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for x in range(size))
 
 # SEGMENTATION AND FEATURE EXTRACTION
 
@@ -89,13 +94,12 @@ def partition(block):
         else:
                 return block
 
-def segment(block, segwise_slices, segments):
+def segment(block, segwise_slices, segments, name):
         if(block.size > (min_size * block_size) and block.size < (max_size * block_size) and segments < max_subdivs): # If our size is above the limit it is not the limit, it *should* be a mulitple of 2.
                 segmented_block = np.array_split(block, segments)
                 feature_shards = []
                 audio_shards = []
-                #print("segmenting...")
-                for seg in segmented_block: 
+                for index, seg in enumerate(segmented_block):
                         shard_size = seg.size
                         if (shard_size / block_size) < min_size:
                                 return block
@@ -128,8 +132,13 @@ def segment(block, segwise_slices, segments):
                                 chroma =  librosa.feature.chroma_cens(seg, sr=sample_rate, n_octaves = 7, hop_length=hop_length)
                                 chroma = chroma.flatten()
                                 concat_feats = np.hstack((concat_feats, chroma)) 
+                        # TEMPO ESTIMATION
+                                tempo = librosa.beat.tempo(seg, sr=sample_rate)
+                                concat_feats = np.hstack((concat_feats, tempo))
                         feature_shards.append(concat_feats)
-                        audio_shards.append(seg)
+                        seg_name = name + str(segments+shard_size/ block_size) + str(index) + '.wav'
+                        sf.write('./data/slices/' + seg_name,seg, sample_rate)
+                        audio_shards.append(seg_name)
                 dims = 0
                 for size in range(min_size, max_size): 
                         if size != 0 and ((size & (size - 1)) == 0):
@@ -137,14 +146,14 @@ def segment(block, segwise_slices, segments):
                                 if(shard_size / block_size) == size:
                                         segwise_slices[dims-1] = [audio_shards, feature_shards]
                 segments = segments * 2
-                return segment(block,segwise_slices, segments)
+                return segment(block,segwise_slices, segments,name)
         else:
                 return block
         
 
 def get_features(file_path_, dataset_, file_name_, sample_rate_): 
         sample_rate = sample_rate_
-        print("blockifying...")
+        name = random_generator() 
         blocks = librosa.stream(file_path_,
                           block_length= block_size,
                           frame_length=2048,
@@ -153,19 +162,10 @@ def get_features(file_path_, dataset_, file_name_, sample_rate_):
         segwise_slices = [None] * int(math.log(max_size)/math.log(2) - math.log(min_size)/math.log(2))
         segments = 2
         dims = 0
-        print(file_name_)
         for y_block in blocks:
             y_block = partition(y_block) # Cut the 2^n sized block into two halves and use the front half, repeat until we have a full block. 
-            y_block = segment(y_block, segwise_slices, segments) 
+            y_block = segment(y_block, segwise_slices, segments, name) 
         dataset_ += [(file_name_, segwise_slices)]
-
-def get_features_raw(raw_data_, dataset_, name):
-        segwise_slices = [None] * int(math.log(max_size)/math.log(2) - math.log(min_size)/math.log(2))
-        segments = 2
-        dims = 0
-        raw_data = partition(raw_data) # Cut the 2^n sized block into two halves and use the front half, repeat until we have a full block. 
-        raw_data = segment(raw_data, segwise_slices, segments) 
-        dataset_ += [(name, segwise_slices)]
 
 
 def get_segment_amounts():
@@ -177,6 +177,7 @@ def get_saved_features(saved_features, dataset_, file_):
             dataset_ += [(file_, saved_features)]
 
 # Compares the input PCA coordinates with a list of nearby PCA coordinates.
+
 def compare_pca(input, nearest, thrs):
     dist = 0
     for i in nearest: 
