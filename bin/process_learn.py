@@ -6,13 +6,15 @@ from sklearn import preprocessing
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors as KNeighbor
-import matplotlib.pyplot as plt
 import soundfile as sf
 import random
 import string
+import threading
+import time
 
 mfcc_size = 24
 sample_rate = 44100
+
 
 # This script contains definitions used in audio_comparative_analysis.  
 # Contains functions which process audio information. Storing, machine learning and feature extraction. 
@@ -94,11 +96,16 @@ def partition(block):
         else:
                 return block
 
-def segment(block, segwise_slices, segments, name):
+def segment(block, segwise_slices, segments, name, threads):
         if(block.size > (min_size * block_size) and block.size < (max_size * block_size) and segments < max_subdivs): # If our size is above the limit it is not the limit, it *should* be a mulitple of 2.
-                segmented_block = np.array_split(block, segments)
                 feature_shards = []
                 audio_shards = []
+                block_segments = segments
+                segmented_block = np.array_split(block, block_segments)
+                segments = segments * 2 
+                seg_thread = threading.Thread(target=segment, args=(block, segwise_slices, segments, name, threads,)) # I have observed increase in speed using threading, almost double the speed in some cases. 
+                threads.append(seg_thread)  
+                seg_thread.start()
                 for index, seg in enumerate(segmented_block):
                         shard_size = seg.size
                         if (shard_size / block_size) < min_size:
@@ -136,8 +143,8 @@ def segment(block, segwise_slices, segments, name):
                                 tempo = librosa.beat.tempo(seg, sr=sample_rate)
                                 concat_feats = np.hstack((concat_feats, tempo))
                         feature_shards.append(concat_feats)
-                        seg_name = name + str(segments+shard_size/ block_size) + str(index) + '.wav'
-                        sf.write('./data/slices/' + seg_name,seg, sample_rate)
+                        seg_name = name + str(block_segments+shard_size/ block_size) + str(index) + '.wav'
+                        sf.write('./data/slices/' + seg_name, seg, sample_rate)
                         audio_shards.append(seg_name)
                 dims = 0
                 for size in range(min_size, max_size): 
@@ -146,14 +153,17 @@ def segment(block, segwise_slices, segments, name):
                                 if(shard_size / block_size) == size:
                                         segwise_slices[dims-1] = [audio_shards, feature_shards]
                 segments = segments * 2
-                return segment(block,segwise_slices, segments,name)
+                # return segment(block,segwise_slices, segments,name, threads)
         else:
                 return block
         
 
 def get_features(file_path_, dataset_, file_name_, sample_rate_): 
+        t0 = time.time()
+        threads = []
         sample_rate = sample_rate_
-        name = random_generator() 
+        name = file_name_
+        print(name)
         blocks = librosa.stream(file_path_,
                           block_length= block_size,
                           frame_length=2048,
@@ -164,8 +174,12 @@ def get_features(file_path_, dataset_, file_name_, sample_rate_):
         dims = 0
         for y_block in blocks:
             y_block = partition(y_block) # Cut the 2^n sized block into two halves and use the front half, repeat until we have a full block. 
-            y_block = segment(y_block, segwise_slices, segments, name) 
-        dataset_ += [(file_name_, segwise_slices)]
+            y_block = segment(y_block, segwise_slices, segments, name, threads) 
+        for thread in threads:
+                thread.join() # Wait for all threads to complete before we add to the dataset...
+        t1 = time.time()
+        print(t1-t0) # Speed check.
+        dataset_ += [([file_name_], segwise_slices)]
 
 
 def get_segment_amounts():
@@ -183,4 +197,3 @@ def compare_pca(input, nearest, thrs):
     for i in nearest: 
         dist += np.linalg.norm(input-i) #  Euclidean distance. 
     return dist
-
