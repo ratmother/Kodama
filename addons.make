@@ -1,3 +1,0 @@
-ofxAudioAnalyzer
-ofxFifo
-ofxGui

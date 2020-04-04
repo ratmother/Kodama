@@ -1,233 +1,200 @@
 import os
-import csv
 import time
 import random
 import string
 import soundfile as sf
-import sounddevice as sd
 import wavio
-import scipy.signal
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
-import numpy as np
 import pickle
-import librosa
 import process_learn as pl
 import time
 import operator
 import random
+import scipy.signal
+import numpy as np
+import queue
+import ringbuffer
 
-# print(sd.query_devices())
-
-# TO DO:
-# Make prune-immortality dynamic rather than on/off.
-# Test accuracy.
-# Make features weighted.
-# Make distance check dynamic rather than on/off.
-# Increase prune chance as dataset gets bigger. 
-
-
-class seg_analysis ():
-    def __init__(self, device_index, pkl_file, plot_results):
+class seg_analysis():
+    def __init__(self, device_index, pkl_file, plot_results,dim, audio_length, sample_rate, size_limit):
+      self.limit = size_limit * 100 # The limit is a value used to control how many files can exist at a time, it is approximately 100 mb per 10000 limit value.
+      self.sample_rate = int(sample_rate)
       self.pkl_file = pkl_file
-      sd.default.device = device_index
-      self.sr = sd.query_devices(device_index, 'input')['default_samplerate']
       self.audio = None
-      self.timer = 0
-      self.dataset,self.input_data,self.nearest,self.segf,self.in_segf= [],[],[],[],[]
-      self.prune_chances = [0.5, 0.7, 0.8] # e.g for dim 0 we have a prune chance of 50%, for dim 1 we have a prune chance of 30%.
-      self.distance_thresholds = [0.9, 0.9, 0.9] # The distance threshold for different dims can be different, as they are scaled differently. 
-      self.num_neighbours = [10, 7, 5] # Number of neighbours for each dim to be checked against.
-      self.growth_rates = [0 for x in range(0, 5)]
-      self.plot = plot_results
+      self.dim = dim
+      self.dataset,self.input_data,self.nearest, self.input_data = [],[],[],[]
+      self.nearest = [[] for x in range(0, dim)]
+      self.input_data = [[] for x in range(0, dim)]
+      self.distance_thresholds = [0.1, 0.6, 0.7, 0.8, 0.9, 0.9] # The distance threshold for different dims can be different, as they are scaled differently. 
+      self.num_neighbours = [4, 5, 8, 10, 11, 12, 13] # Number of neighbours for each dim to be checked against.
+      self.growth_rates = [0 for x in range(0, dim)]
+      self.plot = plot_results 
       if self.plot:
-            fig, self.axs = plt.subplots(3, figsize=(4,12))
+            fig, self.axs = plt.subplots(dim, figsize=(4,12)) 
+      pl.max_subdivs = dim
+      self.rb = ringbuffer.RingBuffer(audio_length * self.sample_rate)
 
-    def segment_dir(self, dir):
-        count = 0
-        for file in os.listdir(dir):
-            if file.endswith('.wav') or file.endswith('.Wav'):
-                count += 1
-                file_path = os.path.join(dir, file)
-                data, _ = librosa.load(file_path)
-                pl.get_features(file_path, self.dataset, file, librosa.get_samplerate(file_path), 1)
-        try:
-            all_file_paths,features = zip(*self.dataset)
-        except:
-            print("No files in learning sounds.")
-            quit()
-        file_out = open(self.pkl_file,"wb")
-        pickle.dump(features, file_out)
-        file_out.close()
-        print(count)
-
-    def read_pkl(self, dir):
-        features_in = open(self.pkl_file,'rb+')
-        conv_saved_features = pickle.load(features_in)
-        index = 0
-        for file in os.listdir(dir):
-            if file.endswith('.wav') or file.endswith('.Wav'):
-                file_path = os.path.join(dir, file)
-                if index <= len(conv_saved_features):
-                    self.dataset += [(file, conv_saved_features[index])]
-                index += 1 
-
-    def parcelization(self):
-        # Prune samples outside of clusters.
-        if(len(self.segf) > 0):
-            for dim in range(0, self.seg_range):
-                self.basis_prunning(dim)
-        # Clear the data buffers, add the remaining input data from the last cycle to the main dataset.
-        self.dataset += self.input_data
-        self.nearest.clear()
-        self.input_data.clear()
-        self.in_segf.clear()
-        self.segf.clear()
-        # Wait for the previous cycle's audio recording to finish, extract the features from it and begin recording new audio for the next cycle.
-        if self.audio is None:
-            self.audio = sd.rec(int(2 * self.sr), samplerate=self.sr, channels=2, dtype = "float32")
-        sd.wait()
-        current_name = self.random_generator()
-        file_path = os.path.join("./data/", current_name + ".wav")
-        wavio.write(file_path, self.audio, self.sr, sampwidth=3)
-        self.audio = sd.rec(int(3.0 * self.sr), samplerate=self.sr, channels=2, dtype = "float32")
-        pl.get_features(file_path,self.input_data, current_name, self.sr, 0.1)
-        os.remove(file_path)
-        # Re-configure dataset to be ordered by 'dimension' of the size of the samples.
-        self.seg_range = pl.get_segment_amounts()
-        self.nearest = [[] for x in range(0, self.seg_range)]
-        self.segf = [[] for x in range(0, self.seg_range)] # Segmented feature storage. Creates matrices. The dimensions are [subdivisons x [dataset - none]]
-        self.in_segf = [[] for x in range(0, self.seg_range)]
-        #
-        all_file_paths,features = zip(*self.dataset)
-        for index, file in enumerate(features): # Iterate over all the dataset entries. Each entry contains a list of length seg_range, each segment range is called a dim from now on.
-            for dim, type in enumerate(file): # In each of the dim's list are two lists pertaining to the type of the contents, either an audio array or feature vector.
-                if file[dim] is not None:  # Ignore empty dims, sometimes we do not have information for higher dims because the data did not intially fit into a block of the highest dims size.
-                    self.segf[dim].append([type, index]) # We need to save the index along with the data so that we know what dataset entry we are looking at.
-        # Do the same process for the input data.
-        all_file_paths,features = zip(*self.input_data)
-        for index, file in enumerate(features): 
-            for dim, type in enumerate(file): 
-                if file[dim] is not None: 
-                    self.in_segf[dim].append([type, index]) 
-        # Save after a certain number of cycles.
-        self.timer += 1
-        if self.timer > 50:
-            self.timer = 0
-            file_out = open(self.pkl_file,"wb")
-            pickle.dump(features, file_out)
-            file_out.close()
-            print("Saving out pickle data, do not end script.")
+    def consolidate(self):
+        for dim in range(0, self.dim):
+            self.basis_prunning(dim)
+        if len(self.dataset) > 1:
+            names,features = zip(*self.dataset)
+            for index, sample in enumerate(features): 
+                delete_sample = True
+                for sample_index, sample_data in enumerate(sample):
+                    if sample_data[0] is None:
+                        del sample_data
+                    else:
+                        delete_sample = False
+                if delete_sample:
+                    del sample
 
     def seg_dim_analysis(self, dim): 
         saa = [] # Sample-audio-arrays.
         sfv = [] # Sample-feature-vectors.
-        # We look through the dataset dimension wise, storing audio and feature data temporarily. 
-        for entries in self.segf[dim]: 
-            for index, shard in enumerate(entries[0][1]):
-                if shard is not None:  
-                    saa.append(entries[0][0][index])  
-                    sfv.append(entries[0][1][index])  # Append all feature shards in entry in dim. segf[dim][type, index][audio array, feature vector][shards]
-        # We look through the input data dimension wise, running cluster analysis on each sample. 
-        for i, entries in enumerate(self.in_segf[dim]): 
-            if entries is not None:
-                for index, shard in enumerate(entries[0][1]): 
-                    if shard is not None:
-                        # Once we have a sample, we append it to the temporary dimension wise array, if it doesn't pass the cluster analysis check it is removed.
-                        save = False
-                        saa.append(entries[0][0][index]) 
-                        sfv.append(shard)
-                        sfv_arr = np.stack(sfv, axis=0) # Converts the list of feature vectors into an array, which is what process_learn needs.
-                        try:
-                            sfv_pca = pl.get_pca(sfv_arr, 3)
-                        except:
-                            return False # We keep the shard as PCA should only fail in the case of not having enough samples.
-                        try:
-                            nearest = pl.get_nearest(sfv_pca, self.num_neighbours[dim], 0.2) 
-                        except:
-                            return False # We also keep the shard when we do not have enough samples for k-nearest neighbour. 
-                        for i in range (1,self.num_neighbours[dim]):
-                            dist_check = pl.euclid(sfv_pca[-1], sfv_pca[i], self.distance_thresholds[dim]) # Theory: If we always add shards when our nearest neighbour(s) is too far away, we should make more clusters.
-                            if dist_check:
-                                save = True # Keeping this simple for now.
-                        self.nearest[dim].append(saa[nearest[0][1]])
-                        del sfv[-1]
-                        del saa[-1]
-                        if not save:
-                            print(str(dim) + " did not save shard.")
-                            os.remove('./data/slices/' + self.in_segf[dim][0][0][0][index])
-                            self.in_segf[dim][0][0][2][index] = None
-                            self.in_segf[dim][0][0][1][index] = None
-                            self.in_segf[dim][0][0][0][index] = None
+        swp = [] # Sample with parameters for sending control information out of Python.
+        if len(self.dataset) > 1:
+            names,features = zip(*self.dataset)
+            for index, sample in enumerate(features): 
+                for sample_index, sample_data in enumerate(sample):
+                    if sample_data[1] is not None and sample_data[3] == dim:
+                        swp.append([sample_data[0],sample_data[2],sample_data[3], sample_data[4]])
+                        saa.append(sample_data[0]) 
+                        sfv.append(sample_data[1])
+        self.dataset += self.input_data[dim] # From the last cycle of this dim we add the input data.
+        self.input_data[dim] = [] # Wipe the array so we can fill it with the new input data.
+        self.nearest[dim].clear()
+        pl.get_feats_frm_data(self.rb.get(),self.input_data[dim], self.random_generator(), 0.8, dim, 2**dim, self.sample_rate) # REMEMBER TO CHANGE THIS
+
+        name,features = zip(*self.input_data[dim]) 
+        for index, sample in enumerate(features): 
+            for sample_index, sample_data in enumerate(sample): # sample_data[0] = audio sample, sample_data[1] = feature data, sample_data[2] = sample immunity, sample_data[3] = sample dim
+                if sample_data[1] is not None:
+                    # Once we have a sample, we append it to the temporary dimension wise array, if it doesn't pass the cluster analysis check it is removed.
+                    save = False
+                    saa.append(sample_data[0]) 
+                    swp.append([sample_data[0],sample_data[2],sample_data[3], sample_data[4]])
+                    sfv.append(sample_data[1])
+                    sfv_arr = np.stack(sfv, axis=0) # Converts the list of feature vectors into an array, which is what process_learn needs.
+                    try:
+                        sfv_pca = pl.get_pca(sfv_arr, 3)
+                    except:
+                        print(len(sfv))
+                        print(str(dim) + " Failed get pca!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                        return False # We keep the shard as PCA should only fail in the case of not having enough samples.
+                    try:
+                        nearest = pl.get_nearest(sfv_pca, self.num_neighbours[dim], 0.2) 
+                    except:
+                        print(len(sfv))
+                        print(str(dim) + " Failed get nearest")
+                        return False # We also keep the shard when we do not have enough samples for k-nearest neighbour. 
+                    for i in range (1,self.num_neighbours[dim]):
+                        dist_check = pl.euclid(sfv_pca[-1], sfv_pca[i], self.distance_thresholds[dim]) # Theory: If we always add shards when our nearest neighbour(s) is too far away, we should make more clusters.
+                        if dist_check:
+                            save = True # Keeping this simple for now.
                         else:
-                            print(str(dim) + " saved shard.")
+                            self.nearest[dim].append(swp[nearest[0][i]])
+                            #self.nearest[dim].append(saa[nearest[0][i]])
+                    del sfv[-1]
+                    del saa[-1]
+                    if not save:
+                        if self.distance_thresholds[dim] > 0.1:
+                            self.distance_thresholds[dim] -= 0.01
+                        #print(str(dim) + " did not save sample.")
+                        if sample_data[0] not in self.nearest[dim]: # Don't delete a sample that is in nearest.
+                            os.remove('./data/slices/' + sample_data[0])
+                            sample_data[0] = None
+                            sample_data[1] = None
+                            sample_data[2] = None
+                    else:
+                        self.distance_thresholds[dim] += 0.01
+                        #print(str(dim) + " saved sample.")
+                   # print(str(self.distance_thresholds[dim]) + " for dim " + str(dim))
 
     def basis_prunning(self, dim): 
         # Theory: By running PCA and DBSCAN on a growing sample collection and granting prune immortality to cluster centers, we get a stronger sense of which samples are representative of our growing audio collection.
         saa = []
         sfv = []
-        for entries in self.segf[dim]:
-            for index, shard in enumerate(entries[0][1]):
-               # if shard is not None and entries[0][2][index] is False:  
-               if shard is not None:
-                    saa.append(entries[0][0][index])  
-                    sfv.append(entries[0][1][index])
-        if len(sfv) >= (10 + self.growth_rates[dim]):
+        if len(self.dataset) > 1:
+            names,features = zip(*self.dataset)
+            for index, sample in enumerate(features): 
+                for sample_index, sample_data in enumerate(sample):
+                    if sample_data[1] is not None and sample_data[3] == dim:
+                        saa.append(sample_data[0]) 
+                        sfv.append(sample_data[1])
+        if len(sfv) >= (5 + self.growth_rates[dim]):
             self.growth_rates[dim] += 1 
             sfv_arr = np.stack(sfv, axis=0)
-            sfv_pca = pl.get_pca(sfv_arr, 2)
+            try:
+                sfv_pca = pl.get_pca(sfv_arr, 2)
+            except:
+                return False
             centers = pl.get_cluster_centers(sfv_pca, 3)
             flat_centers = [item for sublist in centers for item in sublist]
+            coeff = self.maprange(len(sfv), (0, self.limit), (1.0, 10.0))
             # PLOTTING
             if self.plot:
                 self.axs[dim].clear()
+                self.axs[dim].set_yticklabels([])
+                self.axs[dim].set_xticklabels([])
+                cpt = sum([len(files) for r, d, files in os.walk("./data/slices/")])
+                plt.title('Amount of files: ' + str(cpt), y = -0.5)
+                #plt.title('Amount of files: ' + str(len(self.dataset)), y = -0.5)
                 plt.axis([0, 1, 0, 1])
                 for index, cords in enumerate(sfv_pca):
                     x = cords[0]
                     y = cords[1]
                     if index in flat_centers:
-                        self.axs[dim].scatter(x, y, s = 8.9,  c='blue', alpha = 0.8) 
-                        self.axs[dim].scatter(x, y, s = 70.9,  c='red', alpha = 0.2) 
+                        self.axs[dim].scatter(x, y, s = 5.9 - coeff,  c='blue', alpha = 0.8) 
+                        self.axs[dim].scatter(x, y, s = 11.9 - coeff,  c='red', alpha = 0.2) 
                     else:
-                        self.axs[dim].scatter(x, y, s = 8.9,  c='blue') 
+                        self.axs[dim].scatter(x, y, s = 5.9,  c='blue') 
+                self.axs[dim].text(0.5,-0.1, "{:.2f}".format(self.distance_thresholds[dim]), size=12, ha="center", 
+                transform=self.axs[dim].transAxes)
                 plt.pause(0.01)
             # PRUNNING
             count = 0
-            for entries in self.segf[dim]:
-                for index, shard in enumerate(entries[0][1]):
-                    #if shard is not None and entries[0][3][index] is False: 
-                    if shard is not None:
+            for index, sample in enumerate(features): 
+                for sample_index, sample_data in enumerate(sample):
+                    if sample_data[1] is not None:
                         count += 1
-                        if count in flat_centers:
-                            entries[0][2][index] -= self.maprange(len(sfv), (0, 1000), (0.8, 0.10)) # This sample is now less likely to be pruned by the mapped amount (100%, 15%).
-                            #entries[0][2][index] -= 0.25 # This shard is now less likely to be pruned (by 0.25% percent).
-                          #  print("Strengthing immunity of " + str(entries[0][0][index]) + " in dim " + str(dim))
-                        # If we have cluster centers, have an sfv greater than 10, and our prune chance passes a random check.
-                        #elif len(sfv) > 10 and random.random() > (self.prune_chances[dim] - len(sfv)*0.001) and len(flat_centers) > 0:
-                              #  print("Prunning " + str(entries[0][0][index])+ " in dim " + str(dim))
-                        elif(entries[0][2][index] >= random.random()): # If the samples prune immunity is below 0, this will never pass.
-                            os.remove('./data/slices/' + entries[0][0][index]) 
-                            entries[0][0][index] = None
-                            entries[0][1][index] = None
-                            entries[0][2][index] = None
-            print(str(dim) + " <-dim, prune chance->" + str((self.prune_chances[dim] - len(sfv)*0.001)))
+                        if count not in flat_centers:
+                            sample_data[2] += 0.001 # This sample is now less likely to be pruned.
+                        #if sample_data[2] > random.random(): # If the samples prune immunity is below 0, this will never pass.
+                        if sample_data[2] * coeff > random.random():
+                            print ("%.6f" % (sample_data[2] * coeff))
+                            if sample_data[0] not in self.nearest[dim]: # Don't delete a sample that is in nearest.
+                                #print(str(dim) + " pruned by chance of" + str(sample_data[2]))
+                                try:
+                                    print("deleting because of prunning")
+                                    os.remove('./data/slices/' + sample_data[0])
+                                except:
+                                    print("Could not remove " + str('./data/slices/' + sample_data[0]) + " ,likely because it was already deleted.") 
+                                sample_data[0] = None
+                                sample_data[1] = None
+                                sample_data[2] = None
 
-        # flat centers is a list of the indexes of sfv_pca we are keeping, this is shared with saa and indices sp
-        # we know that we are                         print(entries[0][0])keeping e.g 173 which happens to be sfv[1,2,6,4] saa[test.wav] and indices[400]
-        # we need saa and sfv to be NONE if they are not in centers. 
+    def fill_buff(self,data, window_size):
+        window = scipy.signal.general_gaussian(window_size+1,p=1,sig=(window_size*0.8)) # Do we need this?
+        audio_data = np.fromstring(data, dtype=np.float32)
+        audio_data = np.append(audio_data, [0])
+        self.rb.extend(audio_data * window)
 
     def get_buffer(self,dim):
+        dict_nearest = list(dict.fromkeys(self.nearest[dim]))
         if len(self.nearest) > 0:
-            files = None
-            if len(self.nearest[dim]) > 0:
-                files = []
-                for file in self.nearest[dim]:
+            files = []
+            for index, file in enumerate(dict_nearest): #just one dim for testing
+                if index < 5:
                     files.append(file)
-                    print(file)
+                else:
+                    pass
+           # print(files)
             return files
 
     @staticmethod
-    def random_generator(size=6, chars=string.ascii_uppercase + string.digits):
+    def random_generator(size=3, chars=string.ascii_uppercase + string.digits):
         return ''.join(random.choice(chars) for x in range(size))
         
     @staticmethod
