@@ -1,5 +1,6 @@
 import os
 import time
+import itertools
 import random
 import string
 import soundfile as sf
@@ -30,6 +31,7 @@ class seg_analysis():
       self.num_neighbours = [4, 5, 8, 10, 11, 12, 13] # Number of neighbours for each dim to be checked against.
       self.growth_rates = [0 for x in range(0, dim)]
       self.plot = plot_results 
+      self.removal_queue = []
       if self.plot:
             fig, self.axs = plt.subplots(dim, figsize=(4,12)) 
       pl.max_subdivs = dim
@@ -49,6 +51,10 @@ class seg_analysis():
                         delete_sample = False
                 if delete_sample:
                     del sample
+        if len(self.removal_queue) > 100: # We hold these audio files for a little while in case our audio generator needs them after they are technically prunned. 
+            for file in self.removal_queue[:100]:
+                os.remove(file)
+            del self.removal_queue[:100]
 
     def seg_dim_analysis(self, dim): 
         saa = [] # Sample-audio-arrays.
@@ -103,7 +109,8 @@ class seg_analysis():
                             self.distance_thresholds[dim] -= 0.01
                         #print(str(dim) + " did not save sample.")
                         if sample_data[0] not in self.nearest[dim]: # Don't delete a sample that is in nearest.
-                            os.remove('./data/slices/' + sample_data[0])
+                            file_path = './data/slices/' + sample_data[0]
+                            self.removal_queue.append(file_path)
                             sample_data[0] = None
                             sample_data[1] = None
                             sample_data[2] = None
@@ -168,7 +175,8 @@ class seg_analysis():
                                 #print(str(dim) + " pruned by chance of" + str(sample_data[2]))
                                 try:
                                     print("deleting because of prunning")
-                                    os.remove('./data/slices/' + sample_data[0])
+                                    file_path = './data/slices/' + sample_data[0]
+                                    self.removal_queue.append(file_path)
                                 except:
                                     print("Could not remove " + str('./data/slices/' + sample_data[0]) + " ,likely because it was already deleted.") 
                                 sample_data[0] = None
@@ -182,15 +190,16 @@ class seg_analysis():
         self.rb.extend(audio_data * window)
 
     def get_buffer(self,dim):
-        dict_nearest = list(dict.fromkeys(self.nearest[dim]))
+       # Our nearest sample list tends to have collected a few duplicates along the way which is unessesary, we use itertools to avoid this problem.
+        self.nearest[dim].sort()
+        dict_nearest = list(self.nearest[dim] for self.nearest[dim],_ in itertools.groupby(self.nearest[dim]))
         if len(self.nearest) > 0:
             files = []
-            for index, file in enumerate(dict_nearest): #just one dim for testing
+            for index, file in enumerate(dict_nearest):
                 if index < 5:
                     files.append(file)
                 else:
                     pass
-           # print(files)
             return files
 
     @staticmethod

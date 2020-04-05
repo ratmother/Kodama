@@ -78,12 +78,10 @@ class main_thread (threading.Thread):
         if self.threadID == 1: # Data cleanup and prunning. See audio_comparative_analysis.py for more information.
             sa.consolidate()
             time.sleep(0.2)
-        if self.threadID == 2: # OSC sending.
-            t = 1
-        if self.threadID == 3: # OSC processing (which must run constantly).
+        if self.threadID == 2: # OSC processing (which must run constantly).
             while True:
                 osc_process()
-        if self.threadID == 4: # Audio stream and buffering. We fill the ringbuffer with the incoming audio data unless we have an empty queue.
+        if self.threadID == 3: # Audio stream and buffering. We fill the ringbuffer with the incoming audio data unless we have an empty queue.
             stream = sd.InputStream(blocksize = int(args.samplerate),
             device=args.device, channels=max(args.channels),
             samplerate=args.samplerate, callback=audio_callback)
@@ -113,9 +111,8 @@ class sdt(threading.Thread): # Threads for each 'dimension', or sample size type
 # RUNNING THE THREADS #
 
 thr_sa = main_thread(1, "Thread-1 ANALYSIS", 1)
-thr_osc = main_thread(2, "Thread-2 OSC SEND", 2)
-thr_osc_process = main_thread(3, "Thread-3 OSC PROCESS", 3)
-thr_audio = main_thread(4, "Thread-4 AUDIO RECORDING", 4)
+thr_osc_process = main_thread(2, "Thread-3 OSC PROCESS", 2)
+thr_audio = main_thread(3, "Thread-4 AUDIO RECORDING", 3)
 threads = []
 sd_threads = []
 
@@ -125,17 +122,14 @@ for dim in range(0,args.dims):
 
 thr_audio.start()
 thr_sa.start()
-thr_osc.start()
 thr_osc_process.start()
 threads.append(thr_sa)
-threads.append(thr_osc)
 
 for t in threads:
     t.join()
 
 while True:
     thr_sa.run()
-    thr_osc.run()
     for t in threads:
         t.join() 
 
