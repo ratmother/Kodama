@@ -1,4 +1,7 @@
 import numpy as np
+
+# ATTRIBUTION: Orginally from https://scimusing.wordpress.com/2013/10/25/ring-buffers-in-pythonnumpy/
+
 class RingBuffer():
     "A 1D ring buffer using numpy arrays"
     def __init__(self, length):

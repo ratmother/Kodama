@@ -6,7 +6,7 @@ Kodama is an experimental ambient intelligence which uses machine learning techn
 
 ## Requirements
 
-A microphone. Python 3 along with an audio generative system which receives OSC messages(I use Supercollider). The OSC message coming out of Kodama is a list of the nearest sound files as well as additional attributes: [file_name.wav, morality, dimension, buffer size].
+A microphone. Python 3 along with an audio generative system which receives OSC messages(I use Supercollider). The OSC message coming out of Kodama is a list of the nearest sound files as well as additional attributes: [file_name.wav, mortality, dimension, buffer size].
 
 Also needed are these libraries: numpy, pickle, scipy, matploblib, osc4py3, sklearn, essentia, soundfile, hdbscan, wavio.
 

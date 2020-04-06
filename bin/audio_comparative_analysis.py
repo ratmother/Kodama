@@ -98,16 +98,14 @@ class seg_analysis():
                     for i in range (1,self.num_neighbours[dim]):
                         dist_check = pl.euclid(sfv_pca[-1], sfv_pca[i], self.distance_thresholds[dim]) # Theory: If we always add shards when our nearest neighbour(s) is too far away, we should make more clusters.
                         if dist_check:
-                            save = True # Keeping this simple for now.
+                            save = True 
                         else:
                             self.nearest[dim].append(swp[nearest[0][i]])
-                            #self.nearest[dim].append(saa[nearest[0][i]])
                     del sfv[-1]
                     del saa[-1]
                     if not save:
                         if self.distance_thresholds[dim] > 0.1:
                             self.distance_thresholds[dim] -= 0.01
-                        #print(str(dim) + " did not save sample.")
                         if sample_data[0] not in self.nearest[dim]: # Don't delete a sample that is in nearest.
                             file_path = './data/slices/' + sample_data[0]
                             self.removal_queue.append(file_path)
@@ -116,8 +114,6 @@ class seg_analysis():
                             sample_data[2] = None
                     else:
                         self.distance_thresholds[dim] += 0.01
-                        #print(str(dim) + " saved sample.")
-                   # print(str(self.distance_thresholds[dim]) + " for dim " + str(dim))
 
     def basis_prunning(self, dim): 
         # Theory: By running PCA and DBSCAN on a growing sample collection and granting prune immortality to cluster centers, we get a stronger sense of which samples are representative of our growing audio collection.
@@ -147,7 +143,6 @@ class seg_analysis():
                 self.axs[dim].set_xticklabels([])
                 cpt = sum([len(files) for r, d, files in os.walk("./data/slices/")])
                 plt.title('Amount of files: ' + str(cpt), y = -0.5)
-                #plt.title('Amount of files: ' + str(len(self.dataset)), y = -0.5)
                 plt.axis([0, 1, 0, 1])
                 for index, cords in enumerate(sfv_pca):
                     x = cords[0]
