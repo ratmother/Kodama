@@ -8,10 +8,12 @@ import queue
 import sounddevice as sd
 import argparse
 import sys
-# idea ignore audio that doesnt contain information in above 15k range, and then have output audio not contain information above 15k range. 
-# to do: gather tempo and/or energy to control tempo and/or energy in SC, add noise gate to pl, get microphone.
-# maybe seperate audio buffers/analysis into threads...
-# This script runs the audio segment analysis with multi-threading in tandem with OSC messaging and Pyaudio callback ringbuffer recording.
+
+## KODAMA ##
+
+## Threader ##
+
+# Mutli-threading and user control script. Handles OSC and audio input as well.
 
 # We use argparse to allow for user terminal control functionality which in turn smooths out the testing process.
 
@@ -77,7 +79,7 @@ class main_thread (threading.Thread):
    def run(self):
         if self.threadID == 1: # Data cleanup and prunning. See audio_comparative_analysis.py for more information.
             sa.consolidate()
-            time.sleep(0.2)
+            time.sleep(2)
         if self.threadID == 2: # OSC processing (which must run constantly).
             while True:
                 osc_process()
@@ -89,11 +91,11 @@ class main_thread (threading.Thread):
                 while True:
                     try:
                         data = q.get_nowait()
-                        sa.fill_buff(data,args.blocksize)
+                        sa.fill_ringbuff(data,args.blocksize)
                     except queue.Empty:
                         pass
 
-class sdt(threading.Thread): # Threads for each 'dimension', or sample size type.
+class sdt(threading.Thread): # Threads for each 'dimension', or sample sizetype.
    def __init__(self, threadID, name, counter, dim):
       threading.Thread.__init__(self)
       self.threadID = threadID
@@ -104,15 +106,15 @@ class sdt(threading.Thread): # Threads for each 'dimension', or sample size type
         while True:
             print("THREAD DIM RUN: " + str(self.dim))
             sa.seg_dim_analysis(self.dim)
-            msg = oscbuildparse.OSCMessage("/kodama/", None, sa.get_buffer(self.dim))
+            msg = oscbuildparse.OSCMessage("/kodama/", None, sa.get_nearest(self.dim))
             osc_send(msg, "Kodama")
             time.sleep(args.audio_length/(self.dim+1))
 
 # RUNNING THE THREADS #
 
 thr_sa = main_thread(1, "Thread-1 ANALYSIS", 1)
-thr_osc_process = main_thread(2, "Thread-3 OSC PROCESS", 2)
-thr_audio = main_thread(3, "Thread-4 AUDIO RECORDING", 3)
+thr_osc_process = main_thread(2, "Thread-2 OSC PROCESS", 2)
+thr_audio = main_thread(3, "Thread-3 AUDIO RECORDING", 3)
 threads = []
 sd_threads = []
 

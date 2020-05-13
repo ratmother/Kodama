@@ -2,11 +2,13 @@
 
 SynthDef.new(\osc_buf_env, {
 	arg out = 0, buf, siz = 0.5;
-	var env;
+	var env, sig;
 	env = EnvGen.kr(Env.perc(siz/2, siz/2), doneAction:2);
-	Out.ar(out, PlayBuf.ar(1, buf, BufRateScale.kr(buf)))
-
+	sig =  PlayBuf.ar(1, buf, BufRateScale.kr(buf));
+	sig = FreeVerb.ar(sig, MouseX.kr(), MouseY.kr());
+Out.ar(out, sig);
 }).add;
+
 
 ~net = NetAddr.new("127.0.0.1", 1050);
 
@@ -21,6 +23,7 @@ OSCdef.new(
 	{
 		arg msg, time, addr, port;
 		~message = msg;
+		//~incoming = Array.new;
 	},
 	'/kodama/'
 );
@@ -63,7 +66,7 @@ OSCdef.new(
 				~incoming[i][1] = false; // Can we just delete this?
 			});
 		};
-		1.wait;
+		1.wait; // interval variable osc 60/bpm
      	};
 }.fork;
 )
