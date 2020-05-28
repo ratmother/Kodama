@@ -1,11 +1,9 @@
-(
-
 SynthDef.new(\osc_buf_env, {
-	arg out = 0, buf, siz = 0.5;
+	arg out = 0, buf, siz = 0.5, mort = 0, dim = 1;
 	var env, sig;
-	env = EnvGen.kr(Env.perc(siz/2, siz/2), doneAction:2);
+	env = EnvGen.kr(Env.perc(siz/2 + 1/dim, siz/2), doneAction:2);
 	sig =  PlayBuf.ar(1, buf, BufRateScale.kr(buf));
-	sig = FreeVerb.ar(sig, MouseX.kr(), MouseY.kr());
+	sig = FreeVerb.ar(sig, 0.3 + mort * 100, 1 / dim);
 Out.ar(out, sig);
 }).add;
 
@@ -23,7 +21,6 @@ OSCdef.new(
 	{
 		arg msg, time, addr, port;
 		~message = msg;
-		//~incoming = Array.new;
 	},
 	'/kodama/'
 );
@@ -31,12 +28,11 @@ OSCdef.new(
 
 ~osc_resp = {
 	inf.do{
-		//~message.postln;
 		~message.size.do{arg i;
 			//input.postln;
 			if(~message[i] == ~message[1], { // ~message[1] is always [.
 				if(~message[i].isNil == false, {
-					var attribs = [~message[i+1],~message[i+2],~message[i+3],~message[i+4]];
+					var attribs = [~message[i+1],~message[i+2],~message[i+3],~message[i+4]]; // [segment file name, mortality, dim, segment size]
 					//attribs.postln;
 					~incoming = ~incoming.add([attribs, true]);
 				});
@@ -52,22 +48,22 @@ OSCdef.new(
 		~incoming.size.do{arg i;
 			var size;
 			if (~incoming[i][1] == true, {
-				//~incoming[i][0][0].postln;
+				//~incoming[i][0][].postln;
 				size = ~incoming[i][0][3]/44100;
-				// Incoming size attrib is in length of buffer, to get seconds we must do this.
+				// Incoming size attrib is in length of buffer, to get seconds we must do thi
 				Buffer.read(s, ~dir +/+ ~incoming[i][0][0], action:{arg buff;
-					Synth.new(\osc_buf_env,[\buf, buff, \siz, size]);
+					Synth.new(\osc_buf_env,[\buf, buff, \siz, size,\mort,~incoming[i][0][1],\dim,~incoming[i][0][2]]);
 					{// Free the buffer after the audio is complete.
 						size.wait;
 						buff.free;
 					}.fork;
 				}
 				);
-				~incoming[i][1] = false; // Can we just delete this?
+				~incoming[i][1] = false;
 			});
 		};
-		1.wait; // interval variable osc 60/bpm
+		1.wait; // interval variable from osc 60/bpm?
      	};
 }.fork;
-)
+
 

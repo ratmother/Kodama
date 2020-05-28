@@ -9,13 +9,21 @@ import sounddevice as sd
 import argparse
 import sys
 
-## KODAMA ##
+"""
+          ⎥	   KODAMA   ⎥	
 
-## Threader ##
+          ⎥	  Threader  ⎥	
 
-# Mutli-threading and user control script. Handles OSC and audio input as well.
-
-# We use argparse to allow for user terminal control functionality which in turn smooths out the testing process.
+ This is the secondary script, it handles mutli-threading, audio input, OSC and user control. 
+ Data is sent to audio_comparative_analysis for segmentation and analysis.
+ OSC messages containing sample information is sent out to Supercollider.
+ We use argparse to allow for user terminal control functionality which in turn smooths out the testing process.
+ Important argparse commands:
+    -l :Lists devices on your computers.
+    -d :Selects the device to use by index. So, when -l lets you know that your microphones index is, for example, 7 you run Kodama by calling 'python threader.py -d 7'. 
+    -p :Whether or not to show the plot.
+    -sl :Size limit of the dataset. The dataset grows so it's important to set the limit by mb(s). This is approximate as the datasets size is controlled by probabilities and multipliers.
+"""
 
 def int_or_str(text):
     """Helper function for argument parsing."""
@@ -63,7 +71,8 @@ if args.samplerate is None:
 osc_startup()
 osc_udp_client("127.0.0.1", 1050, "Kodama")
 q = queue.Queue()
-sa = aca.seg_analysis(args.device,'feature_data.pkl', args.plot, args.dims, args.audio_length, args.samplerate, args.size_limit)
+sa = aca.seg_analysis(args.device, args.plot, args.dims, args.audio_length, args.samplerate, args.size_limit)
+print("Kodama has started. Ignore the decomposition/_pca.py:456 runtime warning.")
 
 def audio_callback(indata, frames, time, status):
     if status:
@@ -77,9 +86,9 @@ class main_thread (threading.Thread):
       self.name = name
       self.counter = counter
    def run(self):
-        if self.threadID == 1: # Data cleanup and prunning. See audio_comparative_analysis.py for more information.
-            sa.consolidate()
-            time.sleep(2)
+        if self.threadID == 1: # Data cleanup and cluster prunning.
+            while True:
+                sa.consolidate()
         if self.threadID == 2: # OSC processing (which must run constantly).
             while True:
                 osc_process()
@@ -104,7 +113,7 @@ class sdt(threading.Thread): # Threads for each 'dimension', or sample sizetype.
       self.dim = dim
    def run(self):
         while True:
-            print("THREAD DIM RUN: " + str(self.dim))
+            #print("THREAD DIM RUN: " + str(self.dim)) # Helpful for observing threads running behaviours.
             sa.seg_dim_analysis(self.dim)
             msg = oscbuildparse.OSCMessage("/kodama/", None, sa.get_nearest(self.dim))
             osc_send(msg, "Kodama")
@@ -112,10 +121,9 @@ class sdt(threading.Thread): # Threads for each 'dimension', or sample sizetype.
 
 # RUNNING THE THREADS #
 
-thr_sa = main_thread(1, "Thread-1 ANALYSIS", 1)
+thr_sa = main_thread(1, "Thread-1 PRUNNING", 1)
 thr_osc_process = main_thread(2, "Thread-2 OSC PROCESS", 2)
 thr_audio = main_thread(3, "Thread-3 AUDIO RECORDING", 3)
-threads = []
 sd_threads = []
 
 for dim in range(0,args.dims):
@@ -125,13 +133,4 @@ for dim in range(0,args.dims):
 thr_audio.start()
 thr_sa.start()
 thr_osc_process.start()
-threads.append(thr_sa)
-
-for t in threads:
-    t.join()
-
-while True:
-    thr_sa.run()
-    for t in threads:
-        t.join() 
 
